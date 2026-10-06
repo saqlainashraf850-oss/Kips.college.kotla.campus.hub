@@ -116,6 +116,12 @@ export interface LocationItem {
   isPrimary?: boolean;
 }
 
+export interface AuthSession {
+  role: 'student' | 'teacher' | 'admin';
+  studentId?: string;
+  teacherId?: string;
+}
+
 export interface CollegeDatabase {
   branding: BrandingInfo;
   auth: AdminAuth;

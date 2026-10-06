@@ -10,11 +10,13 @@ import {
   AnnouncementItem,
   GalleryItem,
   InquiryItem,
-  LocationItem
+  LocationItem,
+  AuthSession
 } from '../types';
 import { INITIAL_COLLEGE_DB } from '../data/initialData';
 
 const STORAGE_KEY = 'kips_master_db_v3';
+const AUTH_SESSION_KEY = 'kips_active_auth_session_v3';
 
 interface PortalContextType {
   db: CollegeDatabase;
@@ -26,6 +28,7 @@ interface PortalContextType {
   setCurrentStudent: (s: StudentItem | null) => void;
   currentTeacher: TeacherItem | null;
   setCurrentTeacher: (t: TeacherItem | null) => void;
+  currentUserSession: AuthSession | null;
   
   // Actions
   login: (role: 'student' | 'teacher' | 'admin', identifier: string, password?: string) => { success: boolean; message?: string };
@@ -79,10 +82,65 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return INITIAL_COLLEGE_DB;
   });
 
-  const [activeView, setActiveView] = useState<'public' | 'student' | 'teacher' | 'admin' | 'login'>('public');
-  const [activeLoginRole, setActiveLoginRole] = useState<'student' | 'teacher' | 'admin'>('student');
-  const [currentStudent, setCurrentStudent] = useState<StudentItem | null>(() => db.students[0] || null);
-  const [currentTeacher, setCurrentTeacher] = useState<TeacherItem | null>(() => db.teachers[0] || null);
+  const [currentUserSession, setCurrentUserSession] = useState<AuthSession | null>(() => {
+    try {
+      const raw = localStorage.getItem(AUTH_SESSION_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {
+      console.error("Failed to read session", e);
+    }
+    return null;
+  });
+
+  const [activeView, setActiveView] = useState<'public' | 'student' | 'teacher' | 'admin' | 'login'>(() => {
+    try {
+      const raw = localStorage.getItem(AUTH_SESSION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.role) return parsed.role;
+      }
+    } catch (e) {}
+    return 'public';
+  });
+
+  const [activeLoginRole, setActiveLoginRole] = useState<'student' | 'teacher' | 'admin'>(() => {
+    try {
+      const raw = localStorage.getItem(AUTH_SESSION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.role) return parsed.role;
+      }
+    } catch (e) {}
+    return 'student';
+  });
+
+  const [currentStudent, setCurrentStudent] = useState<StudentItem | null>(() => {
+    try {
+      const raw = localStorage.getItem(AUTH_SESSION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.role === 'student' && parsed.studentId) {
+          const match = db.students.find(s => s.id === parsed.studentId);
+          if (match) return match;
+        }
+      }
+    } catch (e) {}
+    return db.students[0] || null;
+  });
+
+  const [currentTeacher, setCurrentTeacher] = useState<TeacherItem | null>(() => {
+    try {
+      const raw = localStorage.getItem(AUTH_SESSION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.role === 'teacher' && parsed.teacherId) {
+          const match = db.teachers.find(t => t.id === parsed.teacherId);
+          if (match) return match;
+        }
+      }
+    } catch (e) {}
+    return db.teachers[0] || null;
+  });
 
   // Sync to localStorage
   useEffect(() => {
@@ -99,6 +157,12 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     if (role === 'admin') {
       if (cleanId === db.auth.adminUser.toLowerCase() && cleanPass === db.auth.adminPass) {
+        const session: AuthSession = { role: 'admin' };
+        try {
+          localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+        } catch (e) {}
+        setCurrentUserSession(session);
+        setActiveLoginRole('admin');
         setActiveView('admin');
         return { success: true };
       }
@@ -118,7 +182,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (cleanPass && found.pass !== cleanPass) {
         return { success: false, message: 'Incorrect student password.' };
       }
+      const session: AuthSession = { role: 'student', studentId: found.id };
+      try {
+        localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      } catch (e) {}
+      setCurrentUserSession(session);
       setCurrentStudent(found);
+      setActiveLoginRole('student');
       setActiveView('student');
       return { success: true };
     }
@@ -131,7 +201,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (found.pass !== cleanPass) {
         return { success: false, message: 'Incorrect teacher password.' };
       }
+      const session: AuthSession = { role: 'teacher', teacherId: found.id };
+      try {
+        localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      } catch (e) {}
+      setCurrentUserSession(session);
       setCurrentTeacher(found);
+      setActiveLoginRole('teacher');
       setActiveView('teacher');
       return { success: true };
     }
@@ -140,6 +216,10 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const logout = () => {
+    try {
+      localStorage.removeItem(AUTH_SESSION_KEY);
+    } catch (e) {}
+    setCurrentUserSession(null);
     setActiveView('public');
   };
 
@@ -468,6 +548,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCurrentStudent,
         currentTeacher,
         setCurrentTeacher,
+        currentUserSession,
         login,
         logout,
         updateContact,

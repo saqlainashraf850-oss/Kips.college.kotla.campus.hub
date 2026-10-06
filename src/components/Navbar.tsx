@@ -31,7 +31,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
-  const { db, activeView, setActiveView, setActiveLoginRole } = usePortal();
+  const { db, activeView, setActiveView, setActiveLoginRole, currentUserSession } = usePortal();
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -57,8 +57,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
   }, [menuDrawerOpen]);
 
   const handleOpenLogin = (role: 'student' | 'teacher' | 'admin') => {
-    setActiveLoginRole(role);
-    setActiveView('login');
+    if (currentUserSession && currentUserSession.role === role) {
+      setActiveView(role);
+    } else {
+      setActiveLoginRole(role);
+      setActiveView('login');
+    }
     setMenuDrawerOpen(false);
   };
 
