@@ -1,0 +1,2431 @@
+import React, { useState } from 'react';
+import { usePortal } from '../context/PortalContext';
+import {
+  LayoutDashboard,
+  Phone,
+  MessageSquare,
+  Layers,
+  Users,
+  GraduationCap,
+  Bell,
+  UserCheck,
+  Image as ImageIcon,
+  Palette,
+  Shield,
+  Database,
+  LogOut,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  AlertCircle,
+  Save,
+  Download,
+  Upload,
+  RefreshCw,
+  X,
+  ExternalLink,
+  MapPin,
+  Clock,
+  Mail
+} from 'lucide-react';
+
+export const AdminPortal: React.FC = () => {
+  const {
+    db,
+    logout,
+    updateContact,
+    updatePrincipal,
+    updateBranding,
+    updateAdminAuth,
+    addSection,
+    deleteSection,
+    addStudent,
+    deleteStudent,
+    addTeacher,
+    deleteTeacher,
+    addAnnouncement,
+    deleteAnnouncement,
+    addGalleryItem,
+    deleteGalleryItem,
+    updateInquiryStatus,
+    deleteInquiry,
+    addLocation,
+    updateLocation,
+    deleteLocation,
+    exportBackup,
+    importBackup,
+    resetDatabase
+  } = usePortal();
+
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'contact' | 'locations' | 'inquiries' | 'sections' | 'students' | 'teachers' | 'notices' | 'principal' | 'gallery' | 'branding' | 'settings' | 'backup'
+  >('contact'); // Start on contact as user specifically requested!
+
+  // --- LOCATION FORM STATE ---
+  const [showAddLocationModal, setShowAddLocationModal] = useState(false);
+  const [showEditLocationModal, setShowEditLocationModal] = useState(false);
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(null);
+  const [locTitle, setLocTitle] = useState('');
+  const [locAddress, setLocAddress] = useState('');
+  const [locLandmark, setLocLandmark] = useState('');
+  const [locMapUrl, setLocMapUrl] = useState('');
+  const [locPhone, setLocPhone] = useState('');
+  const [locIsPrimary, setLocIsPrimary] = useState(false);
+
+  // --- CONTACT FORM STATE ---
+  const [contactAddress, setContactAddress] = useState(db.contact.address);
+  const [contactPhone, setContactPhone] = useState(db.contact.phone);
+  const [contactWhatsapp, setContactWhatsapp] = useState(db.contact.whatsapp);
+  const [contactEmail, setContactEmail] = useState(db.contact.email);
+  const [contactAdmissionEmail, setContactAdmissionEmail] = useState(db.contact.admissionEmail);
+  const [contactHours, setContactHours] = useState(db.contact.hours);
+  const [contactEmergency, setContactEmergency] = useState(db.contact.emergencyHelpline);
+  const [contactMapUrl, setContactMapUrl] = useState(db.contact.locationMapUrl || '');
+  const [contactSavedNotice, setContactSavedNotice] = useState(false);
+
+  // --- PRINCIPAL FORM STATE ---
+  const [prName, setPrName] = useState(db.principal.name);
+  const [prDesig, setPrDesig] = useState(db.principal.designation);
+  const [prQual, setPrQual] = useState(db.principal.qualifications);
+  const [prPhone, setPrPhone] = useState(db.principal.phone);
+  const [prEmail, setPrEmail] = useState(db.principal.email);
+  const [prMsg, setPrMsg] = useState(db.principal.message);
+  const [prPhotoUrl, setPrPhotoUrl] = useState(db.principal.photo);
+  const [prSavedNotice, setPrSavedNotice] = useState(false);
+
+  // --- BRANDING STATE ---
+  const [brandTitle, setBrandTitle] = useState(db.branding.title);
+  const [brandLogoUrl, setBrandLogoUrl] = useState(db.branding.logoUrl);
+
+  // --- SECURITY STATE ---
+  const [newAdminUser, setNewAdminUser] = useState(db.auth.adminUser);
+  const [newAdminPass, setNewAdminPass] = useState(db.auth.adminPass);
+
+  // --- DELETION & NOTICE STATE ---
+  const [deletingGalleryId, setDeletingGalleryId] = useState<string | null>(null);
+  const [adminActionNotice, setAdminActionNotice] = useState<string | null>(null);
+
+  // --- MODALS STATE ---
+  const [showAddSectionModal, setShowAddSectionModal] = useState(false);
+  const [secName, setSecName] = useState('');
+  const [secRoom, setSecRoom] = useState('');
+  const [secCapacity, setSecCapacity] = useState(60);
+
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [stdName, setStdName] = useState('');
+  const [stdFather, setStdFather] = useState('');
+  const [stdEmail, setStdEmail] = useState('');
+  const [stdPass, setStdPass] = useState('1234');
+  const [stdSection, setStdSection] = useState(db.sections[0]?.name || 'CB1');
+  const [stdCustomCard, setStdCustomCard] = useState('');
+  const [stdPhotoUrl, setStdPhotoUrl] = useState('');
+
+  const [showAddTeacherModal, setShowAddTeacherModal] = useState(false);
+  const [teaName, setTeaName] = useState('');
+  const [teaEmail, setTeaEmail] = useState('');
+  const [teaPass, setTeaPass] = useState('1234');
+  const [teaSubject, setTeaSubject] = useState('');
+  const [teaIncharge, setTeaIncharge] = useState('None');
+  const [teaQual, setTeaQual] = useState('');
+  const [teaExp, setTeaExp] = useState('');
+  const [teaPhotoUrl, setTeaPhotoUrl] = useState('');
+
+  const [showAddNoticeModal, setShowAddNoticeModal] = useState(false);
+  const [notTitle, setNotTitle] = useState('');
+  const [notPriority, setNotPriority] = useState<'Urgent' | 'Important' | 'General'>('Important');
+  const [notDesc, setNotDesc] = useState('');
+  const [notPhotoUrl, setNotPhotoUrl] = useState('');
+
+  const [showAddGalleryModal, setShowAddGalleryModal] = useState(false);
+  const [galTitle, setGalTitle] = useState('');
+  const [galCategory, setGalCategory] = useState<'Campus' | 'Labs' | 'Maths' | 'Events'>('Maths');
+  const [galPhotoUrl, setGalPhotoUrl] = useState('');
+
+  // Filter for students table
+  const [studentSectionFilter, setStudentSectionFilter] = useState('All');
+  const [studentSearch, setStudentSearch] = useState('');
+
+  // 1. SAVE CONTACT INFO (Requested Feature)
+  const handleSaveContact = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateContact({
+      address: contactAddress.trim(),
+      phone: contactPhone.trim(),
+      whatsapp: contactWhatsapp.trim(),
+      email: contactEmail.trim(),
+      admissionEmail: contactAdmissionEmail.trim(),
+      hours: contactHours.trim(),
+      emergencyHelpline: contactEmergency.trim(),
+      locationMapUrl: contactMapUrl.trim()
+    });
+    setContactSavedNotice(true);
+    setTimeout(() => setContactSavedNotice(false), 5000);
+  };
+
+  // 2. SAVE PRINCIPAL INFO
+  const handleSavePrincipal = (e: React.FormEvent) => {
+    e.preventDefault();
+    updatePrincipal({
+      name: prName.trim(),
+      designation: prDesig.trim(),
+      qualifications: prQual.trim(),
+      phone: prPhone.trim(),
+      email: prEmail.trim(),
+      message: prMsg.trim(),
+      photo: prPhotoUrl || db.principal.photo
+    });
+    setPrSavedNotice(true);
+    setTimeout(() => setPrSavedNotice(false), 5000);
+  };
+
+  // 3. CREATE SECTION
+  const handleCreateSection = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = secName.trim().toUpperCase();
+    if (!clean || !secRoom.trim()) {
+      alert("Please provide Section Name and Room.");
+      return;
+    }
+    const ok = addSection({
+      name: clean,
+      room: secRoom.trim(),
+      incharge: 'Unassigned',
+      capacity: Number(secCapacity) || 60
+    });
+    if (!ok) {
+      alert(`Section "${clean}" already exists.`);
+      return;
+    }
+    setShowAddSectionModal(false);
+    setSecName('');
+    setSecRoom('');
+    alert(`Section ${clean} created successfully!`);
+  };
+
+  // 4. CREATE STUDENT
+  const handleCreateStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stdName.trim() || !stdEmail.trim() || !stdPass.trim()) {
+      alert("Name, Gmail and Password are required.");
+      return;
+    }
+
+    const rollNo = (db.students.length + 1).toString().padStart(3, '0');
+    const cardId = stdCustomCard.trim() || `KIPS-${stdSection}-00${120 + db.students.length + 1}`;
+
+    const res = addStudent({
+      name: stdName.trim(),
+      father: stdFather.trim() || 'Parent',
+      email: stdEmail.trim(),
+      pass: stdPass.trim(),
+      roll: rollNo,
+      cardId,
+      class: '1st Year',
+      section: stdSection,
+      attendance: 95,
+      attendanceStatus: 'Present',
+      photo: stdPhotoUrl || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80',
+      grade: 'Grade A'
+    });
+
+    if (!res.success) {
+      alert(res.message || "Failed to create student.");
+      return;
+    }
+
+    setShowAddStudentModal(false);
+    setStdName('');
+    setStdFather('');
+    setStdEmail('');
+    setStdCustomCard('');
+    setStdPhotoUrl('');
+    alert(`Student registered successfully!\nCard ID: ${cardId}`);
+  };
+
+  // 5. CREATE TEACHER (MATHS / SCIENCE)
+  const handleCreateTeacher = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teaName.trim() || !teaEmail.trim() || !teaPass.trim() || !teaSubject.trim()) {
+      alert("Name, Gmail, Password and Subject/Standard are required.");
+      return;
+    }
+
+    const res = addTeacher({
+      name: teaName.trim(),
+      email: teaEmail.trim(),
+      pass: teaPass.trim(),
+      subject: teaSubject.trim(),
+      inchargeSection: teaIncharge,
+      qualification: teaQual.trim() || 'M.Sc Subject Specialist',
+      experience: teaExp.trim() || 'Senior Faculty',
+      photo: teaPhotoUrl || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80'
+    });
+
+    if (!res.success) {
+      alert(res.message || "Failed to register teacher.");
+      return;
+    }
+
+    setShowAddTeacherModal(false);
+    setTeaName('');
+    setTeaEmail('');
+    setTeaSubject('');
+    setTeaQual('');
+    setTeaExp('');
+    setTeaPhotoUrl('');
+    alert(`Teacher registered successfully! Login Email: ${teaEmail}`);
+  };
+
+  // 6. CREATE NOTICE WITH PICTURE
+  const handleCreateNotice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notTitle.trim() || !notDesc.trim()) {
+      alert("Title and details are required.");
+      return;
+    }
+
+    addAnnouncement({
+      title: notTitle.trim(),
+      priority: notPriority,
+      desc: notDesc.trim(),
+      photo: notPhotoUrl || undefined
+    });
+
+    setShowAddNoticeModal(false);
+    setNotTitle('');
+    setNotDesc('');
+    setNotPhotoUrl('');
+    alert("Notice published to website!");
+  };
+
+  // 7. CREATE GALLERY PHOTO
+  const handleCreateGallery = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!galTitle.trim() || !galPhotoUrl) {
+      alert("Photo title and image are required.");
+      return;
+    }
+
+    addGalleryItem({
+      title: galTitle.trim(),
+      category: galCategory,
+      url: galPhotoUrl
+    });
+
+    setShowAddGalleryModal(false);
+    setGalTitle('');
+    setGalPhotoUrl('');
+    alert("Photo added to college gallery!");
+  };
+
+  // 7B. LOCATION HANDLERS (Requested Feature)
+  const handleCreateLocation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locTitle.trim() || !locAddress.trim()) {
+      alert("Location title and physical address are required.");
+      return;
+    }
+    addLocation({
+      title: locTitle.trim(),
+      address: locAddress.trim(),
+      landmark: locLandmark.trim() || undefined,
+      mapUrl: locMapUrl.trim() || `https://maps.google.com/?q=${encodeURIComponent(locAddress.trim())}`,
+      phone: locPhone.trim() || undefined,
+      isPrimary: locIsPrimary
+    });
+    setShowAddLocationModal(false);
+    setLocTitle('');
+    setLocAddress('');
+    setLocLandmark('');
+    setLocMapUrl('');
+    setLocPhone('');
+    setLocIsPrimary(false);
+    setAdminActionNotice(`Campus location "${locTitle.trim()}" added successfully!`);
+    setTimeout(() => setAdminActionNotice(null), 3500);
+  };
+
+  const handleStartEditLocation = (loc: any) => {
+    setEditingLocationId(loc.id);
+    setLocTitle(loc.title || '');
+    setLocAddress(loc.address || '');
+    setLocLandmark(loc.landmark || '');
+    setLocMapUrl(loc.mapUrl || '');
+    setLocPhone(loc.phone || '');
+    setLocIsPrimary(!!loc.isPrimary);
+    setShowEditLocationModal(true);
+  };
+
+  const handleSaveEditLocation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLocationId) return;
+    updateLocation(editingLocationId, {
+      title: locTitle.trim(),
+      address: locAddress.trim(),
+      landmark: locLandmark.trim() || undefined,
+      mapUrl: locMapUrl.trim() || `https://maps.google.com/?q=${encodeURIComponent(locAddress.trim())}`,
+      phone: locPhone.trim() || undefined,
+      isPrimary: locIsPrimary
+    });
+    setShowEditLocationModal(false);
+    setEditingLocationId(null);
+    setAdminActionNotice(`Location updated successfully!`);
+    setTimeout(() => setAdminActionNotice(null), 3500);
+  };
+
+  const handleDeleteLocation = (id: string, title: string) => {
+    if (window.confirm(`Are you sure you want to delete the location "${title}"?`)) {
+      deleteLocation(id);
+      setAdminActionNotice(`Location "${title}" deleted.`);
+      setTimeout(() => setAdminActionNotice(null), 3500);
+    }
+  };
+
+  // 8. UPDATE BRANDING
+  const handleSaveBranding = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateBranding(brandTitle.trim(), brandLogoUrl);
+    alert("Branding and College Logo updated site-wide!");
+  };
+
+  // 9. UPDATE ADMIN PASSCODE
+  const handleSaveSecurity = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAdminUser.trim() || !newAdminPass.trim()) {
+      alert("Admin username and password cannot be blank.");
+      return;
+    }
+    updateAdminAuth(newAdminUser.trim(), newAdminPass.trim());
+    alert("Admin credentials updated successfully!");
+  };
+
+  // 10. RESTORE BACKUP
+  const handleRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = evt.target?.result as string;
+      const success = importBackup(content);
+      if (success) {
+        alert("Database successfully restored from backup!");
+      } else {
+        alert("Failed to restore backup. Invalid JSON file format.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Helper file reader for base64 images
+  const handlePhotoUploadHelper = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (url: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setter(evt.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const filteredStudents = db.students.filter(s => {
+    const matchSec = studentSectionFilter === 'All' || s.section === studentSectionFilter;
+    const matchQ = !studentSearch.trim() ||
+      s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+      s.cardId.toLowerCase().includes(studentSearch.toLowerCase()) ||
+      s.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
+      s.roll.toLowerCase().includes(studentSearch.toLowerCase());
+    return matchSec && matchQ;
+  });
+
+  return (
+    <div className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex flex-col lg:flex-row gap-6">
+      {/* Sidebar Navigation */}
+      <aside className="w-full lg:w-64 glass-sidebar p-5 rounded-3xl flex flex-col justify-between flex-shrink-0 shadow-lg">
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3 pb-4 border-b border-sky-100">
+            <div className="w-10 h-10 rounded-xl bg-sky-600 text-white font-black flex items-center justify-center overflow-hidden">
+              {db.branding.logoUrl ? (
+                <img src={db.branding.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <GraduationCap className="w-6 h-6" />
+              )}
+            </div>
+            <div>
+              <h3 className="font-black text-sm text-slate-900 leading-tight">
+                {db.branding.title}
+              </h3>
+              <p className="text-[10px] font-bold text-sky-600">Admin Control Center</p>
+            </div>
+          </div>
+
+          <nav className="space-y-1 text-xs font-semibold max-h-[65vh] overflow-y-auto no-scrollbar">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'overview' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Overview</span>
+            </button>
+
+            {/* Requested Feature Highlighted: Contact */}
+            <button
+              onClick={() => setActiveTab('contact')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition ${
+                activeTab === 'contact' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Phone className="w-4 h-4 text-emerald-500" />
+                <span className="font-bold">Contact Info & Timings</span>
+              </div>
+              <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] rounded font-black">
+                Edit
+              </span>
+            </button>
+
+            {/* Requested Feature: Locations Management */}
+            <button
+              onClick={() => setActiveTab('locations')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition ${
+                activeTab === 'locations' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <MapPin className="w-4 h-4 text-rose-500 animate-icon-blink" />
+                <span className="font-bold">Campus Locations & Map</span>
+              </div>
+              <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 text-[9px] rounded font-black">
+                {(db.locations || []).length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('inquiries')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition ${
+                activeTab === 'inquiries' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <MessageSquare className="w-4 h-4 text-sky-600" />
+                <span>Admission Inquiries</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 text-[10px] font-bold">
+                {db.inquiries?.length || 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('sections')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'sections' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <Layers className="w-4 h-4 text-amber-500" />
+              <span>Sections (CB1, CB2)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('students')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'students' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <Users className="w-4 h-4 text-sky-600" />
+              <span>Students (DP & Card ID)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('teachers')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'teachers' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4 text-indigo-600" />
+              <span>Maths Faculty & Teachers</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('notices')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'notices' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <Bell className="w-4 h-4 text-rose-500" />
+              <span>Announcements (with Pic)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('principal')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'principal' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <UserCheck className="w-4 h-4 text-emerald-600" />
+              <span>Principal Profile & DP</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('gallery')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'gallery' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <ImageIcon className="w-4 h-4 text-teal-500" />
+              <span>Photo Gallery</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('branding')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'branding' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <Palette className="w-4 h-4 text-purple-500" />
+              <span>Logo & Branding</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'settings' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <Shield className="w-4 h-4 text-slate-600" />
+              <span>Admin Passcode</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('backup')}
+              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+                activeTab === 'backup' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <Database className="w-4 h-4 text-blue-500" />
+              <span>Backup & Restore</span>
+            </button>
+          </nav>
+        </div>
+
+        <button
+          onClick={logout}
+          className="flex items-center space-x-2 px-3 py-2.5 rounded-xl hover:bg-red-50 text-red-600 transition text-xs font-bold pt-3 border-t border-slate-200"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Exit Admin Panel</span>
+        </button>
+      </aside>
+
+      {/* Main Workspace Area */}
+      <main className="flex-1 space-y-6">
+        {/* TAB: OVERVIEW */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="glass-panel p-4 rounded-2xl flex items-center justify-between border border-sky-100">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Enrolled Students</p>
+                  <h3 className="text-2xl font-black text-slate-900 mt-0.5">{db.students.length}</h3>
+                  <p className="text-[10px] text-sky-600 font-bold">With Active Cards</p>
+                </div>
+                <div className="p-3 bg-sky-50 text-sky-600 rounded-xl">
+                  <Users className="w-6 h-6" />
+                </div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-2xl flex items-center justify-between border border-sky-100">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Faculty Members</p>
+                  <h3 className="text-2xl font-black text-slate-900 mt-0.5">{db.teachers.length}</h3>
+                  <p className="text-[10px] text-indigo-600 font-bold">Maths & Science</p>
+                </div>
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-2xl flex items-center justify-between border border-sky-100">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Sections</p>
+                  <h3 className="text-2xl font-black text-amber-600 mt-0.5">{db.sections.length}</h3>
+                  <p className="text-[10px] text-slate-500 font-medium">CB1, CB2 Batches</p>
+                </div>
+                <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                  <Layers className="w-6 h-6" />
+                </div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-2xl flex items-center justify-between border border-sky-100">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Study Materials</p>
+                  <h3 className="text-2xl font-black text-emerald-600 mt-0.5">{db.materials.length}</h3>
+                  <p className="text-[10px] text-slate-500 font-medium">PDFs, Videos, Notes</p>
+                </div>
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+              </div>
+            </div>
+
+            {/* Fast Control Center */}
+            <div className="glass-panel p-6 rounded-2xl space-y-4 border border-sky-100">
+              <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                Quick Administrative Actions
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                <button
+                  onClick={() => setShowAddStudentModal(true)}
+                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-sky-500 hover:shadow-md transition text-center space-y-2 group"
+                >
+                  <Users className="w-6 h-6 text-sky-600 mx-auto group-hover:scale-110 transition" />
+                  <span className="block text-xs font-bold text-slate-800">Register Student</span>
+                </button>
+
+                <button
+                  onClick={() => setShowAddTeacherModal(true)}
+                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-indigo-500 hover:shadow-md transition text-center space-y-2 group"
+                >
+                  <GraduationCap className="w-6 h-6 text-indigo-600 mx-auto group-hover:scale-110 transition" />
+                  <span className="block text-xs font-bold text-slate-800">Register Teacher</span>
+                </button>
+
+                <button
+                  onClick={() => setShowAddSectionModal(true)}
+                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-amber-500 hover:shadow-md transition text-center space-y-2 group"
+                >
+                  <Layers className="w-6 h-6 text-amber-500 mx-auto group-hover:scale-110 transition" />
+                  <span className="block text-xs font-bold text-slate-800">Add Section (CB3)</span>
+                </button>
+
+                <button
+                  onClick={() => setShowAddNoticeModal(true)}
+                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-rose-500 hover:shadow-md transition text-center space-y-2 group"
+                >
+                  <Bell className="w-6 h-6 text-rose-500 mx-auto group-hover:scale-110 transition" />
+                  <span className="block text-xs font-bold text-slate-800">Post Notice with Pic</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: CONTACT INFO & TIMINGS (THE SPECIFIC REQUESTED FEATURE!) */}
+        {activeTab === 'contact' && (
+          <div className="glass-panel p-6 sm:p-8 rounded-2xl space-y-6 border border-sky-100 shadow-sm max-w-3xl">
+            <div className="border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-2 text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">
+                <Phone className="w-4 h-4" />
+                <span>Admin Management</span>
+              </div>
+              <h2 className="text-xl font-black text-slate-900">
+                Change Contact Details & Office Timings
+              </h2>
+              <p className="text-xs text-slate-500">
+                Updates here immediately take effect on the main website top header, footer, and the Contact page.
+              </p>
+            </div>
+
+            {contactSavedNotice && (
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center space-x-2 shadow-sm animate-fade-in">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                <span>Contact information successfully updated and published to the website!</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveContact} className="space-y-4 text-xs font-medium">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  College Physical Address *
+                </label>
+                <div className="relative">
+                  <textarea
+                    rows={2}
+                    required
+                    value={contactAddress}
+                    onChange={e => setContactAddress(e.target.value)}
+                    placeholder="Main Road Kotla Arab Ali Khan, District Gujrat, Punjab..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white"
+                  />
+                  <MapPin className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Primary Phone Number(s) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={contactPhone}
+                      onChange={e => setContactPhone(e.target.value)}
+                      placeholder="+92 300 1234567, +92 53 7580000"
+                      className="w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white"
+                    />
+                    <Phone className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    WhatsApp Helpline Number *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={contactWhatsapp}
+                      onChange={e => setContactWhatsapp(e.target.value)}
+                      placeholder="+92 301 7654321"
+                      className="w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white"
+                    />
+                    <MessageSquare className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Official College Email *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      value={contactEmail}
+                      onChange={e => setContactEmail(e.target.value)}
+                      placeholder="kotla@kips.edu.pk"
+                      className="w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white"
+                    />
+                    <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Admissions Desk Email
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={contactAdmissionEmail}
+                      onChange={e => setContactAdmissionEmail(e.target.value)}
+                      placeholder="admissions.kotla@kips.edu.pk"
+                      className="w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white"
+                    />
+                    <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Office Timings (Weekdays & Fridays) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={contactHours}
+                      onChange={e => setContactHours(e.target.value)}
+                      placeholder="Mon – Sat: 7:45 AM – 3:30 PM (Friday: 7:45 AM – 12:30 PM)"
+                      className="w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white"
+                    />
+                    <Clock className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Emergency Helpline Number
+                  </label>
+                  <input
+                    type="text"
+                    value={contactEmergency}
+                    onChange={e => setContactEmergency(e.target.value)}
+                    placeholder="+92 53 7580000"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Google Maps Location Link (Optional)
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={contactMapUrl}
+                    onChange={e => setContactMapUrl(e.target.value)}
+                    placeholder="https://maps.google.com/?q=..."
+                    className="w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white"
+                  />
+                  <ExternalLink className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                </div>
+              </div>
+
+              <div className="pt-3">
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md shadow-emerald-600/30 flex items-center space-x-2 transition"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save & Update Public Contact Details</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* TAB: LOCATIONS MANAGEMENT (Requested Feature) */}
+        {activeTab === 'locations' && (
+          <div className="glass-panel p-6 sm:p-8 rounded-2xl space-y-6 border border-sky-100 shadow-sm max-w-4xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 flex items-center space-x-2">
+                  <MapPin className="w-5 h-5 text-rose-500 animate-icon-blink" />
+                  <span>Campus Locations & Map Directions</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Add, update, or remove physical campuses, blocks, and directions shown on the public site
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLocTitle('');
+                  setLocAddress('');
+                  setLocLandmark('');
+                  setLocMapUrl('');
+                  setLocPhone('');
+                  setLocIsPrimary(false);
+                  setShowAddLocationModal(true);
+                }}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Campus Location</span>
+              </button>
+            </div>
+
+            {/* Notification Banner */}
+            {adminActionNotice && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center space-x-2 animate-fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>{adminActionNotice}</span>
+              </div>
+            )}
+
+            {/* List of Locations */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(db.locations || []).map(loc => (
+                <div
+                  key={loc.id}
+                  className={`p-5 rounded-2xl border transition shadow-sm space-y-3.5 bg-white relative ${
+                    loc.isPrimary ? 'border-sky-300 ring-2 ring-sky-100' : 'border-slate-200 hover:border-sky-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-black text-slate-900 text-sm">{loc.title}</span>
+                        {loc.isPrimary && (
+                          <span className="px-2 py-0.5 bg-sky-100 text-sky-800 text-[10px] font-black rounded-full uppercase tracking-wider">
+                            Primary Campus
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 font-medium flex items-start space-x-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-rose-500 flex-shrink-0 mt-0.5" />
+                        <span>{loc.address}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {loc.landmark && (
+                    <div className="bg-sky-50/70 p-2.5 rounded-xl border border-sky-100 text-[11px] text-sky-900">
+                      <span className="font-bold">Landmark / Directions:</span> {loc.landmark}
+                    </div>
+                  )}
+
+                  {loc.phone && (
+                    <div className="text-xs text-slate-500 font-semibold flex items-center space-x-1.5">
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{loc.phone}</span>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStartEditLocation(loc)}
+                        className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-lg border border-sky-200 transition"
+                      >
+                        Edit Location
+                      </button>
+
+                      {!loc.isPrimary && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateLocation(loc.id, { isPrimary: true });
+                            setAdminActionNotice(`"${loc.title}" set as Primary Campus.`);
+                            setTimeout(() => setAdminActionNotice(null), 3500);
+                          }}
+                          className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold rounded-lg transition"
+                        >
+                          Make Primary
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      {loc.mapUrl && (
+                        <a
+                          href={loc.mapUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg transition"
+                          title="Open Google Maps link"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLocation(loc.id, loc.title)}
+                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
+                        title="Delete location"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {(!db.locations || db.locations.length === 0) && (
+              <div className="text-center py-8 text-slate-400 text-xs space-y-2">
+                <p>No extra campus locations configured. Click "+ Add Campus Location" above.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB: INQUIRIES */}
+        {activeTab === 'inquiries' && (
+          <div className="glass-panel p-6 rounded-2xl space-y-4 border border-sky-100 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Student & Admission Inquiries</h2>
+                <p className="text-xs text-slate-500">
+                  Queries submitted through the public college website inquiry form
+                </p>
+              </div>
+              <span className="text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200">
+                {db.inquiries?.length || 0} Total Received
+              </span>
+            </div>
+
+            {(!db.inquiries || db.inquiries.length === 0) ? (
+              <div className="p-8 text-center text-xs text-slate-400">
+                No inquiries submitted yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {db.inquiries.map(inq => (
+                  <div
+                    key={inq.id}
+                    className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-slate-900 text-sm">{inq.name}</span>
+                        <span className="text-xs text-sky-600 font-semibold">• {inq.program}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            inq.status === 'New'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : inq.status === 'Replied'
+                              ? 'bg-sky-100 text-sky-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {inq.status}
+                        </span>
+                        <span className="text-[11px] text-slate-400">{inq.date}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-2.5 rounded-xl">
+                      "{inq.message}"
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                      <div className="flex items-center space-x-3">
+                        <a
+                          href={`tel:${inq.phone}`}
+                          className="font-bold text-sky-600 hover:underline flex items-center space-x-1"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>{inq.phone}</span>
+                        </a>
+                        {inq.email && (
+                          <a
+                            href={`mailto:${inq.email}`}
+                            className="text-slate-600 hover:underline flex items-center space-x-1"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            <span>{inq.email}</span>
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => updateInquiryStatus(inq.id, 'Replied')}
+                          className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px]"
+                        >
+                          Mark Replied
+                        </button>
+                        <button
+                          onClick={() => deleteInquiry(inq.id)}
+                          className="p-1 text-red-500 hover:text-red-700 rounded hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB: SECTIONS */}
+        {activeTab === 'sections' && (
+          <div className="glass-panel p-6 rounded-2xl space-y-5 border border-sky-100 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Academic Sections (CB1, CB2)</h2>
+                <p className="text-xs text-slate-500">
+                  Manage class section batches, assigned rooms, and in-charge faculty
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddSectionModal(true)}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add New Section</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {db.sections.map(sec => {
+                const count = db.students.filter(s => s.section === sec.name).length;
+                return (
+                  <div
+                    key={sec.id}
+                    className="p-5 rounded-2xl bg-white border border-sky-200 shadow-sm space-y-3 relative flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="px-3 py-1 rounded-xl text-xs font-black bg-sky-100 text-sky-800">
+                          Section {sec.name}
+                        </span>
+                        <button
+                          onClick={() => {
+                            deleteSection(sec.id);
+                            setAdminActionNotice(`Section ${sec.name} deleted.`);
+                            setTimeout(() => setAdminActionNotice(null), 3500);
+                          }}
+                          className="text-red-500 hover:text-red-700 p-1"
+                          title="Delete section"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <h4 className="font-black text-sm text-slate-900 mt-2">{sec.room}</h4>
+                      <p className="text-xs text-slate-500 mt-1">
+                        In-Charge: <strong className="text-slate-800">{sec.incharge}</strong>
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-500">Capacity: {sec.capacity}</span>
+                      <span className="font-extrabold text-sky-600">
+                        {count} Enrolled
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: STUDENTS (DP & CARD ID) */}
+        {activeTab === 'students' && (
+          <div className="glass-panel p-6 rounded-2xl space-y-5 border border-sky-100 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Student Directory (Cards & DP)</h2>
+                <p className="text-xs text-slate-500">
+                  Register students with photograph, custom or auto Card ID, and Gmail login
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <select
+                  value={studentSectionFilter}
+                  onChange={e => setStudentSectionFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-white"
+                >
+                  <option value="All">All Sections</option>
+                  {db.sections.map(s => (
+                    <option key={s.id} value={s.name}>Section {s.name}</option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={() => setShowAddStudentModal(true)}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Register Student</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search Input */}
+            <input
+              type="text"
+              value={studentSearch}
+              onChange={e => setStudentSearch(e.target.value)}
+              placeholder="Search by Name, Roll Number, Card ID, or Gmail..."
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium bg-white"
+            />
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-sky-50 text-sky-950 font-bold uppercase border-b border-sky-100">
+                  <tr>
+                    <th className="p-3">Student & DP</th>
+                    <th className="p-3">Father</th>
+                    <th className="p-3">Gmail (Login)</th>
+                    <th className="p-3">Section</th>
+                    <th className="p-3">Roll No</th>
+                    <th className="p-3">Card ID (Barcode)</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold bg-white">
+                  {filteredStudents.map(std => (
+                    <tr key={std.id} className="hover:bg-sky-50/40 transition">
+                      <td className="p-3 flex items-center space-x-2.5">
+                        <img
+                          src={std.photo}
+                          alt={std.name}
+                          className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                        />
+                        <div>
+                          <span className="font-bold text-slate-900 block">{std.name}</span>
+                          <span className="text-[10px] text-slate-400">Pass: {std.pass}</span>
+                        </div>
+                      </td>
+                      <td className="p-3 text-slate-600">{std.father}</td>
+                      <td className="p-3 font-mono text-slate-700">{std.email}</td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-bold">
+                          {std.section}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono">{std.roll}</td>
+                      <td className="p-3 font-mono font-bold text-purple-700">{std.cardId}</td>
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => {
+                            deleteStudent(std.id);
+                            setAdminActionNotice(`Student "${std.name}" deleted.`);
+                            setTimeout(() => setAdminActionNotice(null), 3500);
+                          }}
+                          className="text-red-500 hover:text-red-700 p-1"
+                          title="Remove student"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: TEACHERS & MATHS FACULTY */}
+        {activeTab === 'teachers' && (
+          <div className="glass-panel p-6 rounded-2xl space-y-5 border border-sky-100 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Faculty & Teachers (Maths & Sciences)</h2>
+                <p className="text-xs text-slate-500">
+                  Register teachers with DP, Subject/Standard, Login Gmail and Section in-charge roles
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddTeacherModal(true)}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Register Teacher</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-sky-50 text-sky-950 font-bold uppercase border-b border-sky-100">
+                  <tr>
+                    <th className="p-3">Teacher & DP</th>
+                    <th className="p-3">Login Gmail</th>
+                    <th className="p-3">Subject / Specialization</th>
+                    <th className="p-3">In-Charge Section</th>
+                    <th className="p-3">Qualification</th>
+                    <th className="p-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold bg-white">
+                  {db.teachers.map(tea => (
+                    <tr key={tea.id} className="hover:bg-sky-50/40 transition">
+                      <td className="p-3 flex items-center space-x-2.5">
+                        <img
+                          src={tea.photo}
+                          alt={tea.name}
+                          className="w-9 h-9 rounded-full object-cover border border-slate-200"
+                        />
+                        <div>
+                          <span className="font-bold text-slate-900 block">{tea.name}</span>
+                          <span className="text-[10px] text-slate-400">Pass: {tea.pass}</span>
+                        </div>
+                      </td>
+                      <td className="p-3 font-mono text-slate-700">{tea.email}</td>
+                      <td className="p-3 font-bold text-sky-700">{tea.subject}</td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold">
+                          {tea.inchargeSection || 'None'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-slate-600">{tea.qualification || 'Specialist'}</td>
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => {
+                            deleteTeacher(tea.id);
+                            setAdminActionNotice(`Teacher "${tea.name}" deleted.`);
+                            setTimeout(() => setAdminActionNotice(null), 3500);
+                          }}
+                          className="text-red-500 hover:text-red-700 p-1"
+                          title="Remove teacher"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: NOTICES WITH PICTURE */}
+        {activeTab === 'notices' && (
+          <div className="glass-panel p-6 rounded-2xl space-y-5 border border-sky-100 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Campus Announcements & Notices</h2>
+                <p className="text-xs text-slate-500">
+                  Publish notifications with custom photo banners and circulars
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddNoticeModal(true)}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Publish Notice</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {db.announcements.map(ann => (
+                <div
+                  key={ann.id}
+                  className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                >
+                  <div className="flex items-start space-x-3.5">
+                    {ann.photo ? (
+                      <img
+                        src={ann.photo}
+                        alt={ann.title}
+                        className="w-16 h-16 rounded-xl object-cover border border-slate-200 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-sky-50 flex items-center justify-center text-sky-600 flex-shrink-0">
+                        <Bell className="w-6 h-6" />
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-sky-100 text-sky-800">
+                          {ann.priority}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-bold">{ann.date}</span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">{ann.title}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{ann.desc}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      deleteAnnouncement(ann.id);
+                      setAdminActionNotice(`Announcement "${ann.title}" deleted.`);
+                      setTimeout(() => setAdminActionNotice(null), 3500);
+                    }}
+                    className="text-red-500 hover:text-red-700 p-2 rounded hover:bg-red-50"
+                    title="Delete notice"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: PRINCIPAL PROFILE */}
+        {activeTab === 'principal' && (
+          <div className="glass-panel p-6 sm:p-8 rounded-2xl space-y-6 border border-sky-100 shadow-sm max-w-2xl">
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-xl font-black text-slate-900">Principal Profile & Message</h2>
+              <p className="text-xs text-slate-500">
+                Update Principal details, qualifications, and official address to scholars
+              </p>
+            </div>
+
+            {prSavedNotice && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Principal profile updated!</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSavePrincipal} className="space-y-4 text-xs font-medium">
+              <div className="flex items-center space-x-4">
+                <img
+                  src={prPhotoUrl}
+                  alt="Principal"
+                  className="w-20 h-20 rounded-2xl object-cover border-2 border-sky-300 shadow"
+                />
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Upload New Principal DP Photo
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handlePhotoUploadHelper(e, setPrPhotoUrl)}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={prName}
+                  onChange={e => setPrName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Designation</label>
+                  <input
+                    type="text"
+                    required
+                    value={prDesig}
+                    onChange={e => setPrDesig(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Qualifications</label>
+                  <input
+                    type="text"
+                    value={prQual}
+                    onChange={e => setPrQual(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Office Phone</label>
+                  <input
+                    type="text"
+                    value={prPhone}
+                    onChange={e => setPrPhone(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={prEmail}
+                    onChange={e => setPrEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Principal Message</label>
+                <textarea
+                  rows={4}
+                  required
+                  value={prMsg}
+                  onChange={e => setPrMsg(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold shadow flex items-center space-x-2"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save Principal Profile</span>
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* TAB: GALLERY */}
+        {activeTab === 'gallery' && (
+          <div className="glass-panel p-6 rounded-2xl space-y-5 border border-sky-100 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Campus Photo Gallery</h2>
+                <p className="text-xs text-slate-500">
+                  Manage college photos for Campus, Labs, Mathematics sessions & Events
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddGalleryModal(true)}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Photo</span>
+              </button>
+            </div>
+
+            {/* Notification Banner */}
+            {adminActionNotice && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center space-x-2 animate-fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>{adminActionNotice}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {db.gallery.map(img => (
+                <div
+                  key={img.id}
+                  className="glass-panel p-2.5 rounded-2xl relative group border border-slate-200 hover:border-sky-300 transition shadow-xs flex flex-col justify-between bg-white"
+                >
+                  <div>
+                    <div className="relative overflow-hidden rounded-xl h-32 w-full bg-slate-100">
+                      <img
+                        src={img.url}
+                        alt={img.title}
+                        className="h-full w-full object-cover img-zoom-focus"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          if (window.confirm(`Delete photo "${img.title}" from college gallery?`)) {
+                            deleteGalleryItem(img.id);
+                            setAdminActionNotice(`Photo "${img.title}" deleted successfully!`);
+                            setTimeout(() => setAdminActionNotice(null), 3500);
+                          }
+                        }}
+                        title="Delete this photo"
+                        className="absolute top-2 right-2 p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-md transition hover:scale-110 active:scale-95 z-10"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="mt-2 px-1">
+                      <h5 className="font-bold text-xs truncate text-slate-900" title={img.title}>
+                        {img.title}
+                      </h5>
+                      <span className="text-[10px] text-sky-600 uppercase font-extrabold block">
+                        {img.category}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Explicit direct Delete button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      if (window.confirm(`Delete photo "${img.title}" from college gallery?`)) {
+                        deleteGalleryItem(img.id);
+                        setAdminActionNotice(`Photo "${img.title}" deleted from college gallery.`);
+                        setTimeout(() => setAdminActionNotice(null), 3500);
+                      }
+                    }}
+                    className="w-full mt-2.5 py-1.5 px-2 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-xl text-[11px] font-bold border border-red-200 hover:border-red-600 transition flex items-center justify-center space-x-1.5 shadow-2xs"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Delete Photo</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: BRANDING */}
+        {activeTab === 'branding' && (
+          <div className="glass-panel p-6 sm:p-8 rounded-2xl space-y-6 border border-sky-100 shadow-sm max-w-lg">
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-xl font-black text-slate-900">College Logo & Brand Title</h2>
+              <p className="text-xs text-slate-500">
+                Customize institution name and crest across the public website and printed ID cards
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveBranding} className="space-y-4 text-xs font-medium">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 rounded-2xl bg-sky-600 text-white flex items-center justify-center overflow-hidden border-2 border-sky-300">
+                  {brandLogoUrl ? (
+                    <img src={brandLogoUrl} alt="Logo" className="w-full h-full object-cover" />
+                  ) : (
+                    <GraduationCap className="w-8 h-8" />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Upload Logo Crest Image
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handlePhotoUploadHelper(e, setBrandLogoUrl)}
+                    className="text-xs"
+                  />
+                  {brandLogoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setBrandLogoUrl('')}
+                      className="text-red-500 text-[10px] hover:underline mt-1 block"
+                    >
+                      Remove Custom Logo
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  College Title / Header Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={brandTitle}
+                  onChange={e => setBrandTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold shadow flex items-center space-x-2"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save Branding</span>
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* TAB: SETTINGS / SECURITY */}
+        {activeTab === 'settings' && (
+          <div className="glass-panel p-6 sm:p-8 rounded-2xl space-y-6 border border-sky-100 shadow-sm max-w-md">
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-xl font-black text-slate-900">Change Admin Passcode</h2>
+              <p className="text-xs text-slate-500">
+                Update the master administrator credentials for Kotla portal
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveSecurity} className="space-y-4 text-xs font-medium">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Admin Username *</label>
+                <input
+                  type="text"
+                  required
+                  value={newAdminUser}
+                  onChange={e => setNewAdminUser(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">New Admin Password *</label>
+                <input
+                  type="password"
+                  required
+                  value={newAdminPass}
+                  onChange={e => setNewAdminPass(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl font-bold shadow flex items-center space-x-2"
+              >
+                <Save className="w-4 h-4" />
+                <span>Update Passcode</span>
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* TAB: BACKUP & RESTORE */}
+        {activeTab === 'backup' && (
+          <div className="glass-panel p-6 sm:p-8 rounded-2xl space-y-6 border border-sky-100 shadow-sm max-w-md">
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-xl font-black text-slate-900">Portal Database Backup</h2>
+              <p className="text-xs text-slate-500">
+                Export all students, teachers, contact info, notes, and circulars to a JSON file
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                onClick={exportBackup}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center justify-center space-x-2 shadow-sm"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Database Backup (JSON)</span>
+              </button>
+
+              <label className="w-full py-3 bg-white hover:bg-slate-50 text-slate-800 rounded-xl font-bold text-xs border border-slate-300 cursor-pointer flex items-center justify-center space-x-2 transition shadow-sm">
+                <Upload className="w-4 h-4 text-sky-600" />
+                <span>Restore Backup File</span>
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleRestoreFile}
+                  className="hidden"
+                />
+              </label>
+
+              <button
+                onClick={() => {
+                  resetDatabase();
+                  setAdminActionNotice("Database reset to default master state.");
+                  setTimeout(() => setAdminActionNotice(null), 3500);
+                }}
+                className="w-full py-2.5 text-red-600 hover:bg-red-50 rounded-xl font-semibold text-xs transition border border-red-200 mt-4"
+              >
+                Reset to Default Master State
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* MODALS SECTION                                           */}
+        {/* ======================================================== */}
+
+        {/* MODAL: ADD SECTION */}
+        {showAddSectionModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-panel bg-white/95 max-w-sm w-full rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="font-black text-slate-900 text-sm">Create Academic Section</h3>
+                <button onClick={() => setShowAddSectionModal(false)} className="text-slate-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateSection} className="space-y-3 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Section Name (e.g. CB3) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={secName}
+                    onChange={e => setSecName(e.target.value)}
+                    placeholder="CB3"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Assigned Classroom *</label>
+                  <input
+                    type="text"
+                    required
+                    value={secRoom}
+                    onChange={e => setSecRoom(e.target.value)}
+                    placeholder="Room 103 (Main Science Wing)"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Student Capacity</label>
+                  <input
+                    type="number"
+                    value={secCapacity}
+                    onChange={e => setSecCapacity(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow mt-2"
+                >
+                  Create Section
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD STUDENT (WITH DP & CARD ID) */}
+        {showAddStudentModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-panel bg-white/95 max-w-lg w-full rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="font-black text-slate-900 text-sm">Register Student (DP & Card ID)</h3>
+                <button onClick={() => setShowAddStudentModal(false)} className="text-slate-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateStudent} className="space-y-3.5 text-xs font-medium">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Full Student Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={stdName}
+                      onChange={e => setStdName(e.target.value)}
+                      placeholder="e.g. Usman Ghani"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Father's Name</label>
+                    <input
+                      type="text"
+                      value={stdFather}
+                      onChange={e => setStdFather(e.target.value)}
+                      placeholder="e.g. Muhammad Ghani"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Student Gmail (Login) *</label>
+                    <input
+                      type="email"
+                      required
+                      value={stdEmail}
+                      onChange={e => setStdEmail(e.target.value)}
+                      placeholder="student@gmail.com"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Password *</label>
+                    <input
+                      type="password"
+                      required
+                      value={stdPass}
+                      onChange={e => setStdPass(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Assign Section</label>
+                    <select
+                      value={stdSection}
+                      onChange={e => setStdSection(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    >
+                      {db.sections.map(s => (
+                        <option key={s.id} value={s.name}>Section {s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">
+                      Custom Card ID (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={stdCustomCard}
+                      onChange={e => setStdCustomCard(e.target.value)}
+                      placeholder="Leave blank for auto card code"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Upload Student Picture (DP) from Device
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handlePhotoUploadHelper(e, setStdPhotoUrl)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
+                  />
+                  {stdPhotoUrl && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <img src={stdPhotoUrl} alt="Preview" className="w-10 h-10 rounded-xl object-cover border" />
+                      <span className="text-[11px] text-emerald-600 font-bold">Photo Loaded Successfully</span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow mt-2"
+                >
+                  Save & Register Student
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD TEACHER (MATHS / SCIENCE) */}
+        {showAddTeacherModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-panel bg-white/95 max-w-lg w-full rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="font-black text-slate-900 text-sm">Register Faculty / Teacher</h3>
+                <button onClick={() => setShowAddTeacherModal(false)} className="text-slate-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateTeacher} className="space-y-3.5 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Teacher Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={teaName}
+                    onChange={e => setTeaName(e.target.value)}
+                    placeholder="Prof. Muhammad Haris"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Gmail (Login) *</label>
+                    <input
+                      type="email"
+                      required
+                      value={teaEmail}
+                      onChange={e => setTeaEmail(e.target.value)}
+                      placeholder="teacher@gmail.com"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Password *</label>
+                    <input
+                      type="password"
+                      required
+                      value={teaPass}
+                      onChange={e => setTeaPass(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Subject / Specialization *</label>
+                    <input
+                      type="text"
+                      required
+                      value={teaSubject}
+                      onChange={e => setTeaSubject(e.target.value)}
+                      placeholder="Mathematics / Calculus / CS"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">In-Charge of Section</label>
+                    <select
+                      value={teaIncharge}
+                      onChange={e => setTeaIncharge(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    >
+                      <option value="None">None</option>
+                      {db.sections.map(s => (
+                        <option key={s.id} value={s.name}>Section {s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Qualifications</label>
+                    <input
+                      type="text"
+                      value={teaQual}
+                      onChange={e => setTeaQual(e.target.value)}
+                      placeholder="M.Sc Mathematics / M.Phil"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Experience</label>
+                    <input
+                      type="text"
+                      value={teaExp}
+                      onChange={e => setTeaExp(e.target.value)}
+                      placeholder="8+ Years Teaching"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Upload Teacher Photo (DP) from Device
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handlePhotoUploadHelper(e, setTeaPhotoUrl)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
+                  />
+                  {teaPhotoUrl && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <img src={teaPhotoUrl} alt="Preview" className="w-10 h-10 rounded-xl object-cover border" />
+                      <span className="text-[11px] text-emerald-600 font-bold">DP Loaded</span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow mt-2"
+                >
+                  Save & Register Faculty Member
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD NOTICE WITH PICTURE */}
+        {showAddNoticeModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-panel bg-white/95 max-w-md w-full rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="font-black text-slate-900 text-sm">Publish Notice with Picture</h3>
+                <button onClick={() => setShowAddNoticeModal(false)} className="text-slate-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateNotice} className="space-y-3.5 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Notice Headline *</label>
+                  <input
+                    type="text"
+                    required
+                    value={notTitle}
+                    onChange={e => setNotTitle(e.target.value)}
+                    placeholder="e.g. Mathematics Grand Mock Exam / Timetable"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Priority</label>
+                  <select
+                    value={notPriority}
+                    onChange={e => setNotPriority(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  >
+                    <option value="Important">Important</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="General">General</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Upload Banner / Circular Photo
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handlePhotoUploadHelper(e, setNotPhotoUrl)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
+                  />
+                  {notPhotoUrl && (
+                    <img src={notPhotoUrl} alt="Preview" className="h-20 rounded-xl mt-2 border object-cover" />
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Notice Details *</label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={notDesc}
+                    onChange={e => setNotDesc(e.target.value)}
+                    placeholder="Type notice description here..."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow mt-2"
+                >
+                  Publish Notice
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD GALLERY PHOTO */}
+        {showAddGalleryModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-panel bg-white/95 max-w-sm w-full rounded-3xl p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="font-black text-slate-900 text-sm">Add Photo to Gallery</h3>
+                <button onClick={() => setShowAddGalleryModal(false)} className="text-slate-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateGallery} className="space-y-3.5 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Photo Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={galTitle}
+                    onChange={e => setGalTitle(e.target.value)}
+                    placeholder="Mathematics Seminar or Campus Ground"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Category</label>
+                  <select
+                    value={galCategory}
+                    onChange={e => setGalCategory(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  >
+                    <option value="Campus">Campus</option>
+                    <option value="Labs">Labs</option>
+                    <option value="Maths">Maths & Seminars</option>
+                    <option value="Events">Events</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Select Photo File *</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    required
+                    onChange={e => handlePhotoUploadHelper(e, setGalPhotoUrl)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
+                  />
+                  {galPhotoUrl && (
+                    <img src={galPhotoUrl} alt="Preview" className="h-20 rounded-xl mt-2 border object-cover" />
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow mt-2"
+                >
+                  Upload to Gallery
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD LOCATION (Requested Feature) */}
+        {showAddLocationModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="glass-panel bg-white/95 max-w-md w-full rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="w-5 h-5 text-rose-500 animate-icon-blink" />
+                  <h3 className="font-black text-slate-900 text-sm">Add Campus Location & Address</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddLocationModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateLocation} className="space-y-3.5 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Location Title / Campus Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={locTitle}
+                    onChange={e => setLocTitle(e.target.value)}
+                    placeholder="e.g. Main Academic Campus & Administration"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Full Physical Address *</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={locAddress}
+                    onChange={e => setLocAddress(e.target.value)}
+                    placeholder="e.g. KIPS College, Bhimber Road, Kotla Arab Ali Khan, Tehsil Kharian, Gujrat, Punjab"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Landmark or Directions Note</label>
+                  <input
+                    type="text"
+                    value={locLandmark}
+                    onChange={e => setLocLandmark(e.target.value)}
+                    placeholder="e.g. Near Kotla Bus Stop, Opposite National Bank"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Contact Phone</label>
+                    <input
+                      type="text"
+                      value={locPhone}
+                      onChange={e => setLocPhone(e.target.value)}
+                      placeholder="+92 300 1234567"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+
+                  <div className="flex items-center pt-5">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={locIsPrimary}
+                        onChange={e => setLocIsPrimary(e.target.checked)}
+                        className="rounded text-sky-600 focus:ring-sky-500 w-4 h-4"
+                      />
+                      <span className="font-bold text-slate-700 text-xs">Primary Campus</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Google Maps Link or Embed URL</label>
+                  <input
+                    type="url"
+                    value={locMapUrl}
+                    onChange={e => setLocMapUrl(e.target.value)}
+                    placeholder="https://maps.google.com/?q=..."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow transition"
+                  >
+                    Save & Add Campus Location
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: EDIT LOCATION (Requested Feature) */}
+        {showEditLocationModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="glass-panel bg-white/95 max-w-md w-full rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="w-5 h-5 text-rose-500" />
+                  <h3 className="font-black text-slate-900 text-sm">Edit Campus Location</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEditLocationModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditLocation} className="space-y-3.5 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Location Title / Campus Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={locTitle}
+                    onChange={e => setLocTitle(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Full Physical Address *</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={locAddress}
+                    onChange={e => setLocAddress(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Landmark or Directions Note</label>
+                  <input
+                    type="text"
+                    value={locLandmark}
+                    onChange={e => setLocLandmark(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Contact Phone</label>
+                    <input
+                      type="text"
+                      value={locPhone}
+                      onChange={e => setLocPhone(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+
+                  <div className="flex items-center pt-5">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={locIsPrimary}
+                        onChange={e => setLocIsPrimary(e.target.checked)}
+                        className="rounded text-sky-600 focus:ring-sky-500 w-4 h-4"
+                      />
+                      <span className="font-bold text-slate-700 text-xs">Primary Campus</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Google Maps Link</label>
+                  <input
+                    type="url"
+                    value={locMapUrl}
+                    onChange={e => setLocMapUrl(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow transition"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};

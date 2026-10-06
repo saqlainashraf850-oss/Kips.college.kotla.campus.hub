@@ -1,0 +1,6 @@
+{
+  "name": "KIPS College Kotla - Unified Digital Portal",
+  "description": "Unified digital portal for KIPS College Kotla featuring student card scanner login, teachers and mathematics faculty directory, photo gallery, admin management for contact info, notices, sections, and study materials.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
