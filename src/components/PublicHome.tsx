@@ -46,6 +46,7 @@ import { GalleryItem } from '../types';
 import { Hero3DLogo } from './Hero3DLogo';
 import { AnimatedCounter } from './AnimatedCounter';
 import { TiltCard } from './TiltCard';
+import { StudentRegistrationModal } from './StudentRegistrationModal';
 
 export const PublicHome: React.FC = () => {
   const { db, setActiveView, setActiveLoginRole, addInquiry } = usePortal();
@@ -87,6 +88,7 @@ export const PublicHome: React.FC = () => {
 
   // Video Modal State
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
 
   const handleResultSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -280,10 +282,11 @@ export const PublicHome: React.FC = () => {
               <div className="flex flex-wrap gap-3 pt-2">
                 {/* 1. Apply Now */}
                 <button
-                  onClick={() => scrollToSection('admissions')}
+                  onClick={() => setIsRegistrationModalOpen(true)}
                   className="px-5 py-3 rounded-2xl font-black text-xs sm:text-sm bg-white text-sky-700 hover:bg-sky-50 shadow-lg shadow-sky-900/20 transition transform hover:-translate-y-0.5 flex items-center space-x-2"
                 >
-                  <span>Apply Now</span>
+                  <Sparkles className="w-4 h-4 text-sky-600 animate-icon-blink" />
+                  <span>Apply Online</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
@@ -639,14 +642,11 @@ export const PublicHome: React.FC = () => {
 
             <div className="flex flex-wrap gap-3 pt-2">
               <button
-                onClick={() => {
-                  const input = document.querySelector('input[placeholder="Enter your name"]') as HTMLInputElement;
-                  if (input) input.focus();
-                  showToast("Please fill the Admission Inquiry form below to start your application.");
-                }}
-                className="px-5 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow"
+                onClick={() => setIsRegistrationModalOpen(true)}
+                className="px-5 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
               >
-                Apply Online
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Apply Online / Register Now</span>
               </button>
               <button
                 onClick={() => showToast("College Prospectus 2026-27 PDF is being generated for download.")}
@@ -1509,6 +1509,12 @@ export const PublicHome: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Online Student Admission Registration Modal (Requirement 1) */}
+      <StudentRegistrationModal
+        isOpen={isRegistrationModalOpen}
+        onClose={() => setIsRegistrationModalOpen(false)}
+      />
 
     </div>
   );
