@@ -44,7 +44,6 @@ export const LoginView: React.FC = () => {
 
   // Student portal sub-mode: 'signin' or 'register'
   const [studentMode, setStudentMode] = useState<'signin' | 'register'>('signin');
-  const [keepSignedIn, setKeepSignedIn] = useState(true);
 
   // Registration Form State
   const [regName, setRegName] = useState('');
@@ -53,12 +52,6 @@ export const LoginView: React.FC = () => {
   const [regClass, setRegClass] = useState('1st Year (F.Sc Pre-Medical)');
   const [regSection, setRegSection] = useState('CB1');
   const [regMobile, setRegMobile] = useState('');
-  const [regParentContact, setRegParentContact] = useState('');
-  const [regDob, setRegDob] = useState('2008-03-12');
-  const [regGender, setRegGender] = useState<'Male' | 'Female' | 'Other'>('Male');
-  const [regPrevSchool, setRegPrevSchool] = useState('');
-  const [regPrevMarks, setRegPrevMarks] = useState('');
-  const [regAdmissionInfo, setRegAdmissionInfo] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPass, setRegPass] = useState('');
   const [regPassConfirm, setRegPassConfirm] = useState('');
@@ -66,7 +59,6 @@ export const LoginView: React.FC = () => {
   // Registration UI state
   const [isSubmittingReg, setIsSubmittingReg] = useState(false);
   const [regSuccessData, setRegSuccessData] = useState<{
-    applicationId?: string;
     name: string;
     roll: string;
     class: string;
@@ -138,7 +130,7 @@ export const LoginView: React.FC = () => {
     setIsCameraActive(false);
   };
 
-  const handleScannedCard = async (code: string) => {
+  const handleScannedCard = (code: string) => {
     const clean = code.trim();
     setIdentifier(clean);
     setActiveLoginRole('student');
@@ -154,7 +146,7 @@ export const LoginView: React.FC = () => {
       setPassword(matched.pass);
       setErrorMessage('');
       setLoginStatusType(null);
-      const res = await login('student', clean, matched.pass, keepSignedIn);
+      const res = login('student', clean, matched.pass);
       if (!res.success) {
         setErrorMessage(res.message || 'Login failed.');
         setLoginStatusType((res.status as 'pending' | 'rejected') || 'error');
@@ -162,7 +154,7 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setLoginStatusType(null);
@@ -172,7 +164,7 @@ export const LoginView: React.FC = () => {
       return;
     }
 
-    const res = await login(activeLoginRole, identifier, password, keepSignedIn);
+    const res = login(activeLoginRole, identifier, password);
     if (!res.success) {
       setErrorMessage(res.message || 'Login failed.');
       setLoginStatusType((res.status as 'pending' | 'rejected') || 'error');
@@ -207,22 +199,17 @@ export const LoginView: React.FC = () => {
 
     setIsSubmittingReg(true);
 
-    try {
-      const res = await registerStudentRequest({
-        studentName: regName.trim(),
-        fatherName: regFather.trim(),
-        roll: regRoll.trim(),
-        appliedClass: regClass,
+    // Realistic network dispatch feel
+    setTimeout(() => {
+      const res = registerStudentRequest({
+        name: regName,
+        father: regFather,
+        roll: regRoll,
+        class: regClass,
         section: regSection,
-        studentContact: regMobile.trim(),
-        parentContact: regParentContact.trim() || regMobile.trim(),
-        email: regEmail.trim() || undefined,
-        pass: regPass,
-        dob: regDob,
-        gender: regGender,
-        previousSchool: regPrevSchool.trim() || 'Matric Science',
-        previousMarks: regPrevMarks.trim() || '1020 / 1100',
-        admissionInfo: regAdmissionInfo.trim() || 'Direct Online Application'
+        mobile: regMobile,
+        email: regEmail || undefined,
+        pass: regPass
       });
 
       setIsSubmittingReg(false);
@@ -232,7 +219,6 @@ export const LoginView: React.FC = () => {
       } else {
         const principalMobile = db.principal.approvalMobileNumber || db.principal.phone || '+92 300 9876543';
         setRegSuccessData({
-          applicationId: res.application?.id || 'APP-2026-NEW',
           name: regName.trim(),
           roll: regRoll.trim(),
           class: `${regClass} (${regSection})`,
@@ -246,10 +232,7 @@ export const LoginView: React.FC = () => {
         setIdentifier(regRoll.trim());
         setPassword(regPass);
       }
-    } catch (err: any) {
-      setIsSubmittingReg(false);
-      setRegError(err.message || 'Network error submitting application');
-    }
+    }, 600);
   };
 
   // Quick fill demo buttons
@@ -454,16 +437,15 @@ export const LoginView: React.FC = () => {
                     <div className="p-3.5 bg-white rounded-xl border border-amber-200 space-y-2 text-xs">
                       <div className="flex items-center space-x-2 text-emerald-800 font-bold text-[11px]">
                         <Send className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Application Registered & Dispatched to All Authorized Admins</span>
+                        <span>Approval Notification Dispatched to Principal Mobile</span>
                       </div>
                       <div className="font-mono text-slate-800 text-[11px] bg-slate-50 p-2.5 rounded-lg border border-slate-200 leading-snug">
-                        • <strong>Application ID:</strong> <span className="font-bold text-sky-700">{regSuccessData.applicationId || 'APP-2026-NEW'}</span><br />
+                        • <strong>Principal Mobile:</strong> {regSuccessData.principalMobile}<br />
                         • <strong>Student Name:</strong> {regSuccessData.name}<br />
-                        • <strong>Roll / Requested ID:</strong> {regSuccessData.roll}<br />
-                        • <strong>Applied Class:</strong> {regSuccessData.class}<br />
-                        • <strong>Contact:</strong> {regSuccessData.mobile}<br />
-                        • <strong>Submission Date/Time:</strong> {regSuccessData.timestamp}<br />
-                        • <strong>Principal Notification:</strong> Sent to {regSuccessData.principalMobile}
+                        • <strong>Roll Number:</strong> {regSuccessData.roll}<br />
+                        • <strong>Class/Course:</strong> {regSuccessData.class}<br />
+                        • <strong>Student Mobile:</strong> {regSuccessData.mobile}<br />
+                        • <strong>Time:</strong> {regSuccessData.timestamp}
                       </div>
                     </div>
 
@@ -624,112 +606,20 @@ export const LoginView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">
-                        Parent / Guardian Mobile *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          required
-                          value={regParentContact}
-                          onChange={e => setRegParentContact(e.target.value)}
-                          placeholder="+92 300 4567890"
-                          className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 bg-white font-mono"
-                        />
-                        <Phone className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">
-                        Student Email (Optional)
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="email"
-                          value={regEmail}
-                          onChange={e => setRegEmail(e.target.value)}
-                          placeholder="e.g. student@gmail.com"
-                          className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 bg-white font-mono"
-                        />
-                        <Mail className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">
-                        Date of Birth / Age *
-                      </label>
-                      <input
-                        type="date"
-                        required
-                        value={regDob}
-                        onChange={e => setRegDob(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 bg-white font-medium"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">
-                        Gender *
-                      </label>
-                      <select
-                        value={regGender}
-                        onChange={e => setRegGender(e.target.value as any)}
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 bg-white font-bold"
-                      >
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">
-                        Previous School / College *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={regPrevSchool}
-                        onChange={e => setRegPrevSchool(e.target.value)}
-                        placeholder="e.g. Govt High School Kotla"
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">
-                        Previous Marks / Result *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={regPrevMarks}
-                        onChange={e => setRegPrevMarks(e.target.value)}
-                        placeholder="e.g. 1024 / 1100 (93%)"
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 bg-white font-mono"
-                      />
-                    </div>
-                  </div>
-
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      Admission Information / Remarks (Optional)
+                      Email Address (Optional)
                     </label>
-                    <textarea
-                      rows={2}
-                      value={regAdmissionInfo}
-                      onChange={e => setRegAdmissionInfo(e.target.value)}
-                      placeholder="Special requirements, scholarship inquiry, or group interest..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 bg-white text-xs"
-                    />
+                    <div className="relative">
+                      <input
+                        type="email"
+                        value={regEmail}
+                        onChange={e => setRegEmail(e.target.value)}
+                        placeholder="e.g. student@gmail.com"
+                        className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 bg-white font-mono"
+                      />
+                      <Mail className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3" />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -931,22 +821,6 @@ export const LoginView: React.FC = () => {
                     )}
                   </div>
                 )}
-
-                {/* Persistent Login Option */}
-                <div className="flex items-center justify-between py-1">
-                  <label className="flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={keepSignedIn}
-                      onChange={e => setKeepSignedIn(e.target.checked)}
-                      className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300"
-                    />
-                    <span>Keep me signed in</span>
-                  </label>
-                  <span className="text-[11px] text-sky-600 font-bold hover:underline cursor-pointer">
-                    Secure Session
-                  </span>
-                </div>
 
                 <button
                   type="submit"

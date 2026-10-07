@@ -20,10 +20,7 @@ import {
   Camera,
   Smartphone,
   Link as LinkIcon,
-  Sparkles,
-  BarChart2,
-  Eye,
-  Download
+  Sparkles
 } from 'lucide-react';
 
 export const TeacherPortal: React.FC = () => {
@@ -35,13 +32,10 @@ export const TeacherPortal: React.FC = () => {
     addMaterial,
     deleteMaterial,
     addGalleryItem,
-    markAttendance,
-    uploadTeacherContent,
-    deleteTeacherContent,
-    teacherContents
+    markAttendance
   } = usePortal();
 
-  const [activeTab, setActiveTab] = useState<'upload' | 'my-uploads' | 'attendance' | 'students'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'attendance' | 'students'>('upload');
   const [selectedSection, setSelectedSection] = useState(
     currentTeacher?.inchargeSection && currentTeacher.inchargeSection !== 'None'
       ? currentTeacher.inchargeSection
@@ -52,8 +46,6 @@ export const TeacherPortal: React.FC = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [matTitle, setMatTitle] = useState('');
   const [matType, setMatType] = useState<'PDF' | 'Image' | 'Video'>('Image');
-  const [matFileType, setMatFileType] = useState<'Picture' | 'Video' | 'PDF' | 'Notes' | 'Assignment' | 'Study Material' | 'Announcement'>('Notes');
-  const [matClass, setMatClass] = useState('1st Year');
   const [matSection, setMatSection] = useState('CB1');
   const [matVideoUrl, setMatVideoUrl] = useState('');
   const [matDesc, setMatDesc] = useState('');
@@ -89,12 +81,8 @@ export const TeacherPortal: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleOpenUploadModalWithType = (
-    type: 'PDF' | 'Image' | 'Video',
-    fType: 'Picture' | 'Video' | 'PDF' | 'Notes' | 'Assignment' | 'Study Material' | 'Announcement' = 'Notes'
-  ) => {
+  const handleOpenUploadModalWithType = (type: 'PDF' | 'Image' | 'Video') => {
     setMatType(type);
-    setMatFileType(fType);
     setFileDataUrl('');
     setFileName('');
     setMatTitle('');
@@ -105,7 +93,7 @@ export const TeacherPortal: React.FC = () => {
     setShowUploadModal(true);
   };
 
-  const handleMaterialSubmit = async (e: React.FormEvent) => {
+  const handleMaterialSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setUploadError(null);
     if (!matTitle.trim()) {
@@ -123,20 +111,7 @@ export const TeacherPortal: React.FC = () => {
       return;
     }
 
-    // 1. Add to Teacher Contents database (Requirement 9)
-    await uploadTeacherContent({
-      fileUrl: matType === 'Video' ? matVideoUrl.trim() : (fileDataUrl || undefined),
-      fileType: matFileType,
-      title: matTitle.trim(),
-      description: matDesc.trim() || undefined,
-      teacherName: currentTeacher.name,
-      teacherId: currentTeacher.id,
-      targetClass: matClass,
-      targetSection: matSection,
-      targetStudents: ['All']
-    });
-
-    // 2. Add to Academic Lecture Materials (compatibility)
+    // 1. Add to Academic Lecture Materials
     addMaterial({
       title: matTitle.trim(),
       type: matType,
@@ -147,7 +122,7 @@ export const TeacherPortal: React.FC = () => {
       description: matDesc.trim() || undefined
     });
 
-    // 3. Also publish to College Campus Photo Gallery if selected
+    // 2. Also publish to College Campus Photo Gallery if selected
     if (matType === 'Image' && alsoAddToGallery && fileDataUrl) {
       addGalleryItem({
         title: matTitle.trim(),
@@ -220,23 +195,6 @@ export const TeacherPortal: React.FC = () => {
             >
               <UploadCloud className="w-4 h-4" />
               <span>Upload Notes & Media</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('my-uploads')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition ${
-                activeTab === 'my-uploads'
-                  ? 'bg-sky-600 text-white shadow'
-                  : 'hover:bg-sky-50 text-slate-700'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <BarChart2 className="w-4 h-4" />
-                <span>My Uploads & Views</span>
-              </div>
-              <span className={`px-2 py-0.5 text-[10px] rounded-full font-bold ${activeTab === 'my-uploads' ? 'bg-sky-500 text-white' : 'bg-sky-100 text-sky-800'}`}>
-                {teacherContents.filter(c => c.teacherId === currentTeacher.id || c.teacherName === currentTeacher.name).length}
-              </span>
             </button>
 
             <button
@@ -463,159 +421,6 @@ export const TeacherPortal: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 1B: MY UPLOADS & VIEWER ANALYTICS (Requirement 9 & 11) */}
-        {activeTab === 'my-uploads' && (
-          <div className="glass-panel p-6 rounded-2xl space-y-6 border border-sky-100 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">
-                  My Uploaded Resources & Student View Analytics
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Track total views, unique student readership, and downloads for your notes and lectures
-                </p>
-              </div>
-
-              <button
-                onClick={() => handleOpenUploadModalWithType('Image', 'Notes')}
-                className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Upload New Content</span>
-              </button>
-            </div>
-
-            {/* Quick Stat Highlights */}
-            {(() => {
-              const myContents = teacherContents.filter(
-                c => c.teacherId === currentTeacher.id || c.teacherName === currentTeacher.name
-              );
-              const totalV = myContents.reduce((acc, c) => acc + (c.totalViews || 0), 0);
-              const uniqueTotal = new Set(
-                myContents.flatMap(c => (Array.isArray(c.uniqueViewers) ? c.uniqueViewers : [String(c.uniqueViewers || 0)]))
-              ).size;
-              const totalDown = myContents.reduce((acc, c) => acc + (c.downloadCount || 0), 0);
-
-              return (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-                    <div className="p-4 bg-sky-50 rounded-2xl border border-sky-200">
-                      <p className="text-[10px] font-bold uppercase text-sky-700">Total Uploads</p>
-                      <h3 className="text-2xl font-black text-sky-900 mt-1">{myContents.length}</h3>
-                      <p className="text-[10px] text-slate-500 font-medium">Notes, Videos & PDFs</p>
-                    </div>
-
-                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
-                      <p className="text-[10px] font-bold uppercase text-emerald-700">Total Views</p>
-                      <h3 className="text-2xl font-black text-emerald-900 mt-1">{totalV}</h3>
-                      <p className="text-[10px] text-slate-500 font-medium">Student Engagements</p>
-                    </div>
-
-                    <div className="p-4 bg-purple-50 rounded-2xl border border-purple-200">
-                      <p className="text-[10px] font-bold uppercase text-purple-700">Unique Students</p>
-                      <h3 className="text-2xl font-black text-purple-900 mt-1">{uniqueTotal}</h3>
-                      <p className="text-[10px] text-slate-500 font-medium">Distinct Readers</p>
-                    </div>
-
-                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200">
-                      <p className="text-[10px] font-bold uppercase text-amber-700">Total Downloads</p>
-                      <h3 className="text-2xl font-black text-amber-900 mt-1">{totalDown}</h3>
-                      <p className="text-[10px] text-slate-500 font-medium">Files Saved</p>
-                    </div>
-                  </div>
-
-                  {/* List of Content Cards */}
-                  {myContents.length === 0 ? (
-                    <div className="p-10 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">
-                      You haven't uploaded any resources yet. Click "Upload New Content" to publish materials.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {myContents.map(c => (
-                        <div
-                          key={c.id}
-                          className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-sky-300 hover:shadow-md transition space-y-3 flex flex-col justify-between"
-                        >
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase bg-sky-100 text-sky-800 border border-sky-200">
-                                {c.fileType}
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-400">{c.uploadDate}</span>
-                            </div>
-
-                            <h4 className="font-extrabold text-sm text-slate-800 leading-snug">{c.title}</h4>
-                            {c.description && (
-                              <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{c.description}</p>
-                            )}
-
-                            <div className="flex flex-wrap gap-1.5 pt-1 text-[10px] font-bold">
-                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                                Class: {c.targetClass}
-                              </span>
-                              <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                                Section: {c.targetSection}
-                              </span>
-                            </div>
-
-                            {/* Views and Analytics strip */}
-                            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-3 gap-1 text-center font-mono text-[10px]">
-                              <div>
-                                <span className="block text-slate-400 text-[9px] uppercase">Views</span>
-                                <strong className="text-sky-700 text-xs font-black">{c.totalViews || 0}</strong>
-                              </div>
-                              <div>
-                                <span className="block text-slate-400 text-[9px] uppercase">Students</span>
-                                <strong className="text-purple-700 text-xs font-black">
-                                  {Array.isArray(c.uniqueViewers) ? c.uniqueViewers.length : (c.uniqueViewers || 0)}
-                                </strong>
-                              </div>
-                              <div>
-                                <span className="block text-slate-400 text-[9px] uppercase">Downloads</span>
-                                <strong className="text-emerald-700 text-xs font-black">{c.downloadCount || 0}</strong>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                            <span className="text-[10px] font-mono text-slate-400">{c.id}</span>
-                            <div className="flex items-center space-x-1">
-                              {c.fileUrl && (
-                                <a
-                                  href={c.fileUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="p-1.5 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg transition"
-                                  title="Preview Content"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </a>
-                              )}
-                              <button
-                                onClick={async () => {
-                                  if (confirm(`Delete "${c.title}"?`)) {
-                                    await deleteTeacherContent(c.id);
-                                    setActionSuccessNotice(`Content "${c.title}" deleted.`);
-                                    setTimeout(() => setActionSuccessNotice(null), 3000);
-                                  }
-                                }}
-                                className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
-                                title="Delete Content"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
         {/* TAB 2: ATTENDANCE REGISTER */}
         {activeTab === 'attendance' && (
           <div className="glass-panel p-6 rounded-2xl space-y-4 border border-sky-100 shadow-sm">
@@ -804,28 +609,40 @@ export const TeacherPortal: React.FC = () => {
                 </button>
               </div>
 
-              {/* Resource Type Category Pills (Requirement 9) */}
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-600">Select Content Category *</label>
-                <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl text-center">
-                  {(['Notes', 'PDF', 'Picture', 'Video', 'Assignment', 'Study Material', 'Announcement'] as const).map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => {
-                        setMatFileType(cat);
-                        if (cat === 'Video') setMatType('Video');
-                        else if (cat === 'Picture' || cat === 'Announcement') setMatType('Image');
-                        else setMatType('PDF');
-                      }}
-                      className={`py-1.5 px-1 rounded-lg text-[10px] font-extrabold transition truncate ${
-                        matFileType === cat ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
+              {/* Resource Type Tabs */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setMatType('Image')}
+                  className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 ${
+                    matType === 'Image' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Photo/Gallery</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMatType('PDF')}
+                  className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 ${
+                    matType === 'PDF' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>PDF Notes</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMatType('Video')}
+                  className={`py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 ${
+                    matType === 'Video' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  <span>Video/Link</span>
+                </button>
               </div>
 
               <form onSubmit={handleMaterialSubmit} className="space-y-3.5 text-xs font-medium">
@@ -853,20 +670,7 @@ export const TeacherPortal: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">Target Class</label>
-                    <select
-                      value={matClass}
-                      onChange={e => setMatClass(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
-                    >
-                      <option value="All">All Classes</option>
-                      <option value="1st Year">1st Year</option>
-                      <option value="2nd Year">2nd Year</option>
-                    </select>
-                  </div>
-
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-slate-700 font-bold mb-1">Target Section</label>
                     <select

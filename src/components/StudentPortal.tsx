@@ -20,26 +20,13 @@ import {
   Barcode,
   Clock,
   AlertCircle,
-  ShieldAlert,
-  Eye,
-  Bell
+  ShieldAlert
 } from 'lucide-react';
-import { MaterialItem, TeacherContentItem } from '../types';
+import { MaterialItem } from '../types';
 
 export const StudentPortal: React.FC = () => {
-  const {
-    db,
-    currentStudent,
-    logout,
-    setActiveView,
-    teacherContents,
-    trackContentView,
-    studentNotifications
-  } = usePortal();
-
+  const { db, currentStudent, logout, setActiveView } = usePortal();
   const [selectedMedia, setSelectedMedia] = useState<MaterialItem | null>(null);
-  const [selectedTeacherContent, setSelectedTeacherContent] = useState<TeacherContentItem | null>(null);
-  const [contentCategoryFilter, setContentCategoryFilter] = useState<string>('All');
 
   if (!currentStudent) {
     return (
@@ -107,39 +94,6 @@ export const StudentPortal: React.FC = () => {
   const sectionMaterials = db.materials.filter(
     m => m.section === 'All' || m.section === currentStudent.section
   );
-
-  // Filter Teacher Uploads specifically for this student's class and section (Requirement 13)
-  const targetedTeacherContents = (teacherContents || []).filter(c => {
-    if (c.isHidden) return false;
-    const matchClass =
-      c.targetClass === 'All' ||
-      !currentStudent.class ||
-      currentStudent.class.toLowerCase().includes(c.targetClass.toLowerCase()) ||
-      c.targetClass.toLowerCase().includes(currentStudent.class.toLowerCase());
-    const matchSection =
-      c.targetSection === 'All' ||
-      c.targetSection.includes(currentStudent.section) ||
-      currentStudent.section.includes(c.targetSection);
-
-    if (!matchClass || !matchSection) return false;
-
-    if (contentCategoryFilter !== 'All' && c.fileType.toLowerCase() !== contentCategoryFilter.toLowerCase()) {
-      return false;
-    }
-    return true;
-  });
-
-  const handleOpenTeacherContent = (content: TeacherContentItem) => {
-    setSelectedTeacherContent(content);
-    // Track View Analytics (Requirement 11)
-    trackContentView(
-      content.id,
-      currentStudent.id,
-      currentStudent.name,
-      currentStudent.class,
-      currentStudent.section
-    );
-  };
 
   return (
     <div className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex flex-col lg:flex-row gap-6">
@@ -280,127 +234,28 @@ export const StudentPortal: React.FC = () => {
           </div>
         </div>
 
-        {/* Study Materials & Video Lectures for This Section (Requirement 13) */}
+        {/* Study Materials & Video Lectures for This Section */}
         <div className="glass-panel p-6 rounded-2xl space-y-4 border border-sky-100 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div>
               <h3 className="font-black text-base text-slate-900">
-                Teacher Notes, Lectures & Media for Section {currentStudent.section}
+                Study Materials, Formulas & Video Lectures for Section {currentStudent.section}
               </h3>
               <p className="text-xs text-slate-500">
-                Targeted academic materials curated by your faculty for {currentStudent.class}
+                Resources curated by your Mathematics and Science subject teachers
               </p>
             </div>
             <span className="text-xs font-bold text-sky-600 bg-sky-50 px-3 py-1 rounded-full border border-sky-200">
-              {targetedTeacherContents.length + sectionMaterials.length} Available Resources
+              {sectionMaterials.length} Available Items
             </span>
           </div>
 
-          {/* Category Filter Chips */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            {(['All', 'Notes', 'PDF', 'Video', 'Picture', 'Assignment', 'Study Material', 'Announcement'] as const).map(cat => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setContentCategoryFilter(cat)}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition ${
-                  contentCategoryFilter === cat
-                    ? 'bg-sky-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          {targetedTeacherContents.length === 0 && sectionMaterials.length === 0 ? (
+          {sectionMaterials.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-400">
               No materials uploaded yet for this section. Your teacher will upload notes soon.
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-              {/* Teacher Uploads with View Analytics */}
-              {targetedTeacherContents.map(c => (
-                <div
-                  key={c.id}
-                  className="p-4 rounded-2xl bg-white border border-sky-100 hover:border-sky-300 hover:shadow-md transition space-y-3 flex flex-col justify-between"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase bg-sky-100 text-sky-800 border border-sky-200">
-                        {c.fileType}
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-400">{c.uploadDate}</span>
-                    </div>
-
-                    <h4 className="font-extrabold text-sm text-slate-800 leading-snug">{c.title}</h4>
-                    {c.description && (
-                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{c.description}</p>
-                    )}
-
-                    <div className="flex items-center justify-between pt-1 text-[11px] font-semibold text-slate-600">
-                      <span>Faculty: <strong className="text-sky-700">{c.teacherName}</strong></span>
-                      <span className="flex items-center space-x-1 text-slate-400 text-[10px]">
-                        <Eye className="w-3 h-3 text-sky-500" />
-                        <span>{c.totalViews || 0} views</span>
-                      </span>
-                    </div>
-
-                    {/* Image Thumbnail Preview */}
-                    {(c.fileType === 'Picture' || c.fileType === 'Image' || c.fileType === 'Announcement') && c.fileUrl && (
-                      <div
-                        onClick={() => handleOpenTeacherContent(c)}
-                        className="h-32 rounded-xl overflow-hidden cursor-pointer relative group border border-slate-200"
-                      >
-                        <img
-                          src={c.fileUrl}
-                          alt={c.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition"
-                        />
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold">
-                          Click to View
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Link */}
-                  <div className="pt-2 border-t border-slate-100">
-                    {c.fileType === 'Video' && c.fileUrl && (
-                      <button
-                        onClick={() => handleOpenTeacherContent(c)}
-                        className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>Watch Video Lecture</span>
-                      </button>
-                    )}
-
-                    {(c.fileType === 'PDF' || c.fileType === 'Notes' || c.fileType === 'Assignment' || c.fileType === 'Study Material') && (
-                      <button
-                        onClick={() => handleOpenTeacherContent(c)}
-                        className="w-full py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>View / Download Notes</span>
-                      </button>
-                    )}
-
-                    {(c.fileType === 'Picture' || c.fileType === 'Image' || c.fileType === 'Announcement') && (
-                      <button
-                        onClick={() => handleOpenTeacherContent(c)}
-                        className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Enlarge / Preview</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              {/* Standard Section Materials */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {sectionMaterials.map(mat => (
                 <div
                   key={mat.id}
@@ -490,85 +345,6 @@ export const StudentPortal: React.FC = () => {
             </div>
           )}
         </div>
-
-        {/* Selected Teacher Content Preview Modal (Requirement 11 Tracking) */}
-        {selectedTeacherContent && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="relative max-w-2xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
-              <div className="flex items-center justify-between border-b pb-3">
-                <div>
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase bg-sky-100 text-sky-800">
-                    {selectedTeacherContent.fileType}
-                  </span>
-                  <h4 className="font-black text-base text-slate-900 mt-1">{selectedTeacherContent.title}</h4>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTeacherContent(null)}
-                  className="p-1.5 rounded-full hover:bg-slate-100 text-slate-500"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {selectedTeacherContent.description && (
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {selectedTeacherContent.description}
-                </p>
-              )}
-
-              <div className="p-3 bg-sky-50 rounded-xl text-xs flex items-center justify-between text-slate-700">
-                <span>Faculty: <strong>{selectedTeacherContent.teacherName}</strong></span>
-                <span>Section: <strong>{selectedTeacherContent.targetSection}</strong></span>
-                <span className="text-sky-700 font-bold">{selectedTeacherContent.totalViews || 1} Total Views</span>
-              </div>
-
-              {selectedTeacherContent.fileUrl && (
-                selectedTeacherContent.fileType === 'Video' ? (
-                  <div className="aspect-video w-full rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center">
-                    <iframe
-                      src={selectedTeacherContent.fileUrl}
-                      title={selectedTeacherContent.title}
-                      className="w-full h-full border-0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                ) : (
-                  <div className="rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 p-2">
-                    <img
-                      src={selectedTeacherContent.fileUrl}
-                      alt={selectedTeacherContent.title}
-                      className="w-full max-h-[60vh] object-contain rounded-xl"
-                    />
-                  </div>
-                )
-              )}
-
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
-                {selectedTeacherContent.fileUrl && (
-                  <a
-                    href={selectedTeacherContent.fileUrl}
-                    download={selectedTeacherContent.title}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download Resource</span>
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setSelectedTeacherContent(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Media Preview Modal */}
         {selectedMedia && (

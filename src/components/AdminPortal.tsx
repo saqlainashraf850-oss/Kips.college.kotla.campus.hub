@@ -31,21 +31,8 @@ import {
   Eye,
   Check,
   ShieldCheck,
-  Send,
-  UploadCloud,
-  BarChart2,
-  Activity,
-  FileText,
-  Award,
-  Sparkles
+  Send
 } from 'lucide-react';
-import { NotificationsModal } from './admin/NotificationsModal';
-import { AdmissionApplicationsTab } from './admin/AdmissionApplicationsTab';
-import { AdminOverviewTab } from './admin/AdminOverviewTab';
-import { TeacherContentTab } from './admin/TeacherContentTab';
-import { TeacherAnalyticsTab } from './admin/TeacherAnalyticsTab';
-import { AuditLogsTab } from './admin/AuditLogsTab';
-import { ActiveSessionsTab } from './admin/ActiveSessionsTab';
 
 export const AdminPortal: React.FC = () => {
   const {
@@ -74,17 +61,12 @@ export const AdminPortal: React.FC = () => {
     deleteLocation,
     exportBackup,
     importBackup,
-    resetDatabase,
-    applications,
-    unreadAdminNotificationsCount,
-    currentAdmin
+    resetDatabase
   } = usePortal();
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'applications' | 'approvals' | 'content' | 'teacher-analytics' | 'audit' | 'sessions' | 'contact' | 'locations' | 'inquiries' | 'sections' | 'students' | 'teachers' | 'notices' | 'principal' | 'gallery' | 'branding' | 'settings' | 'backup'
-  >('approvals');
-
-  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+    'overview' | 'approvals' | 'contact' | 'locations' | 'inquiries' | 'sections' | 'students' | 'teachers' | 'notices' | 'principal' | 'gallery' | 'branding' | 'settings' | 'backup'
+  >('approvals'); // Default to Principal Approvals so the user immediately sees the requested feature!
 
   // --- APPROVAL MANAGEMENT STATE ---
   const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'approved' | 'rejected' | 'all' | 'notifications'>('pending');
@@ -495,78 +477,7 @@ export const AdminPortal: React.FC = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-5">
-      {/* Top Admin Control Bar with Bell Notifications */}
-      <div className="glass-panel bg-white/95 p-4 rounded-2xl border border-sky-200/80 shadow-md flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-gradient-to-tr from-sky-600 to-cyan-500 text-white rounded-xl shadow-md">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h2 className="text-sm font-black text-slate-900">
-                {db.branding.title} — Admin Portal
-              </h2>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
-                {currentAdmin?.role || 'Super Admin'}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Administrator: <strong className="text-slate-800">{currentAdmin?.name || 'Prof. Muhammad Tariq (Principal)'}</strong>
-            </p>
-          </div>
-        </div>
-
-        {/* Right action group: 🔔 Notifications Button & Quick Shortcuts */}
-        <div className="flex items-center space-x-2 sm:space-x-3">
-          {/* Quick Shortcuts */}
-          <button
-            onClick={() => setActiveTab('applications')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
-              activeTab === 'applications'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Applications ({applications.filter(a => a.status === 'Pending').length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('content')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
-              activeTab === 'content'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-            }`}
-          >
-            <UploadCloud className="w-3.5 h-3.5" />
-            <span>Teacher Uploads</span>
-          </button>
-
-          {/* REQUIREMENT 2: 🔔 Notifications with unread badge "🔔 3" */}
-          <button
-            type="button"
-            onClick={() => setShowNotificationsModal(true)}
-            className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-amber-500/20 transition flex items-center space-x-2 relative group"
-            title="View Real-Time Student Registration & Campus Notifications"
-          >
-            <Bell className="w-4 h-4 text-white group-hover:rotate-12 transition-transform" />
-            <span>🔔 Notifications</span>
-            {unreadAdminNotificationsCount > 0 ? (
-              <span className="px-2 py-0.5 bg-rose-600 text-white text-[10px] font-black rounded-full shadow-sm animate-bounce">
-                🔔 {unreadAdminNotificationsCount}
-              </span>
-            ) : (
-              <span className="px-1.5 py-0.5 bg-amber-700/60 text-white text-[10px] rounded-full font-bold">
-                0
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-6">
+    <div className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex flex-col lg:flex-row gap-6">
       {/* Sidebar Navigation */}
       <aside className="w-full lg:w-64 glass-sidebar p-5 rounded-3xl flex flex-col justify-between flex-shrink-0 shadow-lg">
         <div className="space-y-4">
@@ -587,43 +498,10 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           <nav className="space-y-1 text-xs font-semibold max-h-[65vh] overflow-y-auto no-scrollbar">
-            {/* Dashboard Overview */}
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
-                activeTab === 'overview' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              <span>Overview & Analytics</span>
-            </button>
-
-            {/* Admission Applications */}
-            <button
-              onClick={() => setActiveTab('applications')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition ${
-                activeTab === 'applications' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <FileText className={`w-4 h-4 ${activeTab === 'applications' ? 'text-white' : 'text-sky-600'}`} />
-                <span className="font-bold">Admission Applications</span>
-              </div>
-              {applications.filter(a => a.status === 'Pending').length > 0 ? (
-                <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] rounded-full font-black animate-pulse">
-                  {applications.filter(a => a.status === 'Pending').length}
-                </span>
-              ) : (
-                <span className="text-[10px] text-slate-400 font-bold">
-                  {applications.length}
-                </span>
-              )}
-            </button>
-
-            {/* Principal Approvals */}
+            {/* 1. PRINCIPAL APPROVALS (PRIMARY REQUESTED FEATURE) */}
             <button
               onClick={() => setActiveTab('approvals')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition ${
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition ${
                 activeTab === 'approvals' ? 'bg-sky-600 text-white shadow-md' : 'hover:bg-sky-50 text-slate-700'
               }`}
             >
@@ -642,53 +520,14 @@ export const AdminPortal: React.FC = () => {
               )}
             </button>
 
-            {/* Teacher Uploads & Content Management */}
             <button
-              onClick={() => setActiveTab('content')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition ${
-                activeTab === 'content' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <UploadCloud className={`w-4 h-4 ${activeTab === 'content' ? 'text-white' : 'text-cyan-600'}`} />
-                <span className="font-bold">Teacher Uploads</span>
-              </div>
-              <span className="px-1.5 py-0.2 bg-cyan-100 text-cyan-800 text-[9px] rounded font-black">
-                {db.teacherContents?.length || 0}
-              </span>
-            </button>
-
-            {/* Teacher Performance Analytics */}
-            <button
-              onClick={() => setActiveTab('teacher-analytics')}
+              onClick={() => setActiveTab('overview')}
               className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
-                activeTab === 'teacher-analytics' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+                activeTab === 'overview' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
               }`}
             >
-              <BarChart2 className={`w-4 h-4 ${activeTab === 'teacher-analytics' ? 'text-white' : 'text-indigo-600'}`} />
-              <span>Teacher Analytics</span>
-            </button>
-
-            {/* Audit Logs */}
-            <button
-              onClick={() => setActiveTab('audit')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
-                activeTab === 'audit' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
-              }`}
-            >
-              <Activity className={`w-4 h-4 ${activeTab === 'audit' ? 'text-white' : 'text-slate-600'}`} />
-              <span>Activity Audit Logs</span>
-            </button>
-
-            {/* Active Sessions */}
-            <button
-              onClick={() => setActiveTab('sessions')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
-                activeTab === 'sessions' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
-              }`}
-            >
-              <Shield className={`w-4 h-4 ${activeTab === 'sessions' ? 'text-white' : 'text-purple-600'}`} />
-              <span>Active Sessions</span>
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Overview</span>
             </button>
 
             {/* Requested Feature Highlighted: Contact */}
@@ -843,32 +682,98 @@ export const AdminPortal: React.FC = () => {
       <main className="flex-1 space-y-6">
         {/* TAB: OVERVIEW */}
         {activeTab === 'overview' && (
-          <AdminOverviewTab onNavigateToTab={(tab: any) => setActiveTab(tab)} />
-        )}
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="glass-panel p-4 rounded-2xl flex items-center justify-between border border-sky-100">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Enrolled Students</p>
+                  <h3 className="text-2xl font-black text-slate-900 mt-0.5">{db.students.length}</h3>
+                  <p className="text-[10px] text-sky-600 font-bold">With Active Cards</p>
+                </div>
+                <div className="p-3 bg-sky-50 text-sky-600 rounded-xl">
+                  <Users className="w-6 h-6" />
+                </div>
+              </div>
 
-        {/* TAB: ADMISSION APPLICATIONS (Requirement 8) */}
-        {activeTab === 'applications' && (
-          <AdmissionApplicationsTab />
-        )}
+              <div className="glass-panel p-4 rounded-2xl flex items-center justify-between border border-sky-100">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Faculty Members</p>
+                  <h3 className="text-2xl font-black text-slate-900 mt-0.5">{db.teachers.length}</h3>
+                  <p className="text-[10px] text-indigo-600 font-bold">Maths & Science</p>
+                </div>
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+              </div>
 
-        {/* TAB: TEACHER UPLOADS & CONTENT MANAGEMENT (Requirement 10) */}
-        {activeTab === 'content' && (
-          <TeacherContentTab />
-        )}
+              <div className="glass-panel p-4 rounded-2xl flex items-center justify-between border border-sky-100">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Sections</p>
+                  <h3 className="text-2xl font-black text-amber-600 mt-0.5">{db.sections.length}</h3>
+                  <p className="text-[10px] text-slate-500 font-medium">CB1, CB2 Batches</p>
+                </div>
+                <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                  <Layers className="w-6 h-6" />
+                </div>
+              </div>
 
-        {/* TAB: TEACHER PERFORMANCE ANALYTICS (Requirement 11 & 12) */}
-        {activeTab === 'teacher-analytics' && (
-          <TeacherAnalyticsTab />
-        )}
+              <div className="glass-panel p-4 rounded-2xl flex items-center justify-between border border-sky-100">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Study Materials</p>
+                  <h3 className="text-2xl font-black text-emerald-600 mt-0.5">{db.materials.length}</h3>
+                  <p className="text-[10px] text-slate-500 font-medium">PDFs, Videos, Notes</p>
+                </div>
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+              </div>
+            </div>
 
-        {/* TAB: AUDIT LOGS (Requirement 4, 5, 14) */}
-        {activeTab === 'audit' && (
-          <AuditLogsTab />
-        )}
+            {/* Fast Control Center */}
+            <div className="glass-panel p-6 rounded-2xl space-y-4 border border-sky-100">
+              <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                Quick Administrative Actions
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                <button
+                  onClick={() => setActiveTab('approvals')}
+                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-emerald-500 hover:shadow-md transition text-center space-y-2 group relative"
+                >
+                  {pendingStudents.length > 0 && (
+                    <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-full animate-pulse">
+                      {pendingStudents.length}
+                    </span>
+                  )}
+                  <ShieldCheck className="w-6 h-6 text-emerald-600 mx-auto group-hover:scale-110 transition" />
+                  <span className="block text-xs font-bold text-slate-800">Principal Approvals</span>
+                </button>
 
-        {/* TAB: ACTIVE SESSIONS & SECURITY (Requirement 14) */}
-        {activeTab === 'sessions' && (
-          <ActiveSessionsTab />
+                <button
+                  onClick={() => setShowAddTeacherModal(true)}
+                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-indigo-500 hover:shadow-md transition text-center space-y-2 group"
+                >
+                  <GraduationCap className="w-6 h-6 text-indigo-600 mx-auto group-hover:scale-110 transition" />
+                  <span className="block text-xs font-bold text-slate-800">Register Teacher</span>
+                </button>
+
+                <button
+                  onClick={() => setShowAddSectionModal(true)}
+                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-amber-500 hover:shadow-md transition text-center space-y-2 group"
+                >
+                  <Layers className="w-6 h-6 text-amber-500 mx-auto group-hover:scale-110 transition" />
+                  <span className="block text-xs font-bold text-slate-800">Add Section (CB3)</span>
+                </button>
+
+                <button
+                  onClick={() => setShowAddNoticeModal(true)}
+                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-rose-500 hover:shadow-md transition text-center space-y-2 group"
+                >
+                  <Bell className="w-6 h-6 text-rose-500 mx-auto group-hover:scale-110 transition" />
+                  <span className="block text-xs font-bold text-slate-800">Post Notice with Pic</span>
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* TAB: PRINCIPAL APPROVAL MANAGEMENT (CORE REQUESTED SYSTEM) */}
@@ -3200,16 +3105,6 @@ export const AdminPortal: React.FC = () => {
           </div>
         )}
       </main>
-      </div>
-
-      {/* REQUIREMENT 2 & 3: ALL AUTHORIZED ADMINS RECEIVE NOTIFICATIONS MODAL */}
-      <NotificationsModal
-        isOpen={showNotificationsModal}
-        onClose={() => setShowNotificationsModal(false)}
-        onViewApplication={() => {
-          setActiveTab('applications');
-        }}
-      />
     </div>
   );
 };

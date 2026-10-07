@@ -25,18 +25,16 @@ import {
   UploadCloud,
   ChevronRight
 } from 'lucide-react';
-import { StudentRegistrationModal } from './StudentRegistrationModal';
 
 interface NavbarProps {
   onOpenSearch?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
-  const { db, activeView, setActiveView, setActiveLoginRole, currentStudent, currentTeacher } = usePortal();
+  const { db, activeView, setActiveView, setActiveLoginRole, currentUserSession } = usePortal();
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [showRegModal, setShowRegModal] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -59,12 +57,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
   }, [menuDrawerOpen]);
 
   const handleOpenLogin = (role: 'student' | 'teacher' | 'admin') => {
-    if (role === 'student' && currentStudent) {
-      setActiveView('student');
-    } else if (role === 'teacher' && currentTeacher) {
-      setActiveView('teacher');
-    } else if (role === 'admin' && activeView === 'admin') {
-      setActiveView('admin');
+    if (currentUserSession && currentUserSession.role === role) {
+      setActiveView(role);
     } else {
       setActiveLoginRole(role);
       setActiveView('login');
@@ -73,8 +67,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
   };
 
   const handleApplyNow = () => {
-    setShowRegModal(true);
+    setActiveView('public');
     setMenuDrawerOpen(false);
+    const el = document.getElementById('admissions');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   const handleNavigateSection = (sectionId: string) => {
@@ -497,11 +495,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
           </div>
         </div>
       )}
-      {/* Online Student Registration & Admission Modal */}
-      <StudentRegistrationModal
-        isOpen={showRegModal}
-        onClose={() => setShowRegModal(false)}
-      />
     </header>
   );
 };
