@@ -17,7 +17,10 @@ import {
   ExternalLink,
   X,
   Sparkles,
-  Barcode
+  Barcode,
+  Clock,
+  AlertCircle,
+  ShieldAlert
 } from 'lucide-react';
 import { MaterialItem } from '../types';
 
@@ -35,6 +38,54 @@ export const StudentPortal: React.FC = () => {
         >
           Return to Login
         </button>
+      </div>
+    );
+  }
+
+  // Security enforcement: Block dashboard access if not approved by Principal
+  if (currentStudent.status !== 'approved') {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className={`glass-panel max-w-lg w-full p-8 rounded-3xl border-2 text-center space-y-4 shadow-xl ${
+          currentStudent.status === 'rejected'
+            ? 'border-rose-300 bg-rose-50/20'
+            : 'border-amber-300 bg-amber-50/20'
+        }`}>
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto ${
+            currentStudent.status === 'rejected'
+              ? 'bg-rose-100 text-rose-700'
+              : 'bg-amber-100 text-amber-700'
+          }`}>
+            {currentStudent.status === 'rejected' ? (
+              <ShieldAlert className="w-8 h-8" />
+            ) : (
+              <Clock className="w-8 h-8 animate-pulse" />
+            )}
+          </div>
+          <h2 className="text-xl font-black text-slate-900">
+            {currentStudent.status === 'rejected'
+              ? 'Account Not Approved by Principal'
+              : 'Account Pending Principal Approval'}
+          </h2>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            {currentStudent.status === 'rejected'
+              ? (currentStudent.rejectionReason
+                  ? `Your account has not been approved by the Principal. Note: "${currentStudent.rejectionReason}"`
+                  : 'Your account has not been approved by the Principal.')
+              : 'Your student registration request is awaiting review by Principal Prof. Muhammad Tariq. Once approved, you will be granted access to the digital student dashboard.'}
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                logout();
+                setActiveView('login');
+              }}
+              className="px-6 py-2.5 bg-sky-600 text-white rounded-xl text-xs font-bold shadow hover:bg-sky-700 transition"
+            >
+              Return to Login Gateway
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

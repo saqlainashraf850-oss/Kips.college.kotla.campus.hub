@@ -26,7 +26,12 @@ import {
   ExternalLink,
   MapPin,
   Clock,
-  Mail
+  Mail,
+  Smartphone,
+  Eye,
+  Check,
+  ShieldCheck,
+  Send
 } from 'lucide-react';
 
 export const AdminPortal: React.FC = () => {
@@ -39,7 +44,9 @@ export const AdminPortal: React.FC = () => {
     updateAdminAuth,
     addSection,
     deleteSection,
-    addStudent,
+    approveStudent,
+    rejectStudent,
+    updatePrincipalMobile,
     deleteStudent,
     addTeacher,
     deleteTeacher,
@@ -58,8 +65,22 @@ export const AdminPortal: React.FC = () => {
   } = usePortal();
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'contact' | 'locations' | 'inquiries' | 'sections' | 'students' | 'teachers' | 'notices' | 'principal' | 'gallery' | 'branding' | 'settings' | 'backup'
-  >('contact'); // Start on contact as user specifically requested!
+    'overview' | 'approvals' | 'contact' | 'locations' | 'inquiries' | 'sections' | 'students' | 'teachers' | 'notices' | 'principal' | 'gallery' | 'branding' | 'settings' | 'backup'
+  >('approvals'); // Default to Principal Approvals so the user immediately sees the requested feature!
+
+  // --- APPROVAL MANAGEMENT STATE ---
+  const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'approved' | 'rejected' | 'all' | 'notifications'>('pending');
+  const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<any | null>(null);
+  const [studentToReject, setStudentToReject] = useState<any | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+  const [approvalSearchQuery, setApprovalSearchQuery] = useState('');
+
+  // --- PRINCIPAL APPROVAL MOBILE CONFIGURATION STATE ---
+  const [prApprovalMobileInput, setPrApprovalMobileInput] = useState(
+    db.principal.approvalMobileNumber || db.principal.phone || '+92 300 9876543'
+  );
+  const [prMobileNotice, setPrMobileNotice] = useState<string | null>(null);
+  const [prMobileError, setPrMobileError] = useState<string | null>(null);
 
   // --- LOCATION FORM STATE ---
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
@@ -105,20 +126,16 @@ export const AdminPortal: React.FC = () => {
   const [deletingGalleryId, setDeletingGalleryId] = useState<string | null>(null);
   const [adminActionNotice, setAdminActionNotice] = useState<string | null>(null);
 
+  const showAdminToast = (msg: string) => {
+    setAdminActionNotice(msg);
+    setTimeout(() => setAdminActionNotice(null), 3500);
+  };
+
   // --- MODALS STATE ---
   const [showAddSectionModal, setShowAddSectionModal] = useState(false);
   const [secName, setSecName] = useState('');
   const [secRoom, setSecRoom] = useState('');
   const [secCapacity, setSecCapacity] = useState(60);
-
-  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
-  const [stdName, setStdName] = useState('');
-  const [stdFather, setStdFather] = useState('');
-  const [stdEmail, setStdEmail] = useState('');
-  const [stdPass, setStdPass] = useState('1234');
-  const [stdSection, setStdSection] = useState(db.sections[0]?.name || 'CB1');
-  const [stdCustomCard, setStdCustomCard] = useState('');
-  const [stdPhotoUrl, setStdPhotoUrl] = useState('');
 
   const [showAddTeacherModal, setShowAddTeacherModal] = useState(false);
   const [teaName, setTeaName] = useState('');
@@ -183,7 +200,7 @@ export const AdminPortal: React.FC = () => {
     e.preventDefault();
     const clean = secName.trim().toUpperCase();
     if (!clean || !secRoom.trim()) {
-      alert("Please provide Section Name and Room.");
+      showAdminToast("Please provide Section Name and Room.");
       return;
     }
     const ok = addSection({
@@ -193,60 +210,63 @@ export const AdminPortal: React.FC = () => {
       capacity: Number(secCapacity) || 60
     });
     if (!ok) {
-      alert(`Section "${clean}" already exists.`);
+      showAdminToast(`Section "${clean}" already exists.`);
       return;
     }
     setShowAddSectionModal(false);
     setSecName('');
     setSecRoom('');
-    alert(`Section ${clean} created successfully!`);
+    showAdminToast(`Section ${clean} created successfully!`);
   };
 
-  // 4. CREATE STUDENT
-  const handleCreateStudent = (e: React.FormEvent) => {
+  // 4. PRINCIPAL APPROVAL ACTIONS
+  const handleApproveStudent = (studentId: string, studentName: string) => {
+    const res = approveStudent(studentId);
+    if (res.success) {
+      setAdminActionNotice(`Student "${studentName}" approved! Account activated and student can now log in.`);
+      setTimeout(() => setAdminActionNotice(null), 4000);
+      if (selectedStudentForDetails?.id === studentId) {
+        setSelectedStudentForDetails((prev: any) => prev ? { ...prev, status: 'approved' } : null);
+      }
+    }
+  };
+
+  const handleOpenRejectModal = (student: any) => {
+    setStudentToReject(student);
+    setRejectionReasonInput('Your account has not been approved by the Principal.');
+  };
+
+  const handleConfirmReject = () => {
+    if (!studentToReject) return;
+    const res = rejectStudent(studentToReject.id, rejectionReasonInput.trim());
+    if (res.success) {
+      setAdminActionNotice(`Student "${studentToReject.name}" registration request rejected.`);
+      setTimeout(() => setAdminActionNotice(null), 4000);
+      if (selectedStudentForDetails?.id === studentToReject.id) {
+        setSelectedStudentForDetails((prev: any) => prev ? { ...prev, status: 'rejected', rejectionReason: rejectionReasonInput.trim() } : null);
+      }
+      setStudentToReject(null);
+    }
+  };
+
+  const handleSavePrincipalMobile = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stdName.trim() || !stdEmail.trim() || !stdPass.trim()) {
-      alert("Name, Gmail and Password are required.");
-      return;
+    setPrMobileNotice(null);
+    setPrMobileError(null);
+    const res = updatePrincipalMobile(prApprovalMobileInput);
+    if (res.success) {
+      setPrMobileNotice(res.message);
+      setTimeout(() => setPrMobileNotice(null), 5000);
+    } else {
+      setPrMobileError(res.message);
     }
-
-    const rollNo = (db.students.length + 1).toString().padStart(3, '0');
-    const cardId = stdCustomCard.trim() || `KIPS-${stdSection}-00${120 + db.students.length + 1}`;
-
-    const res = addStudent({
-      name: stdName.trim(),
-      father: stdFather.trim() || 'Parent',
-      email: stdEmail.trim(),
-      pass: stdPass.trim(),
-      roll: rollNo,
-      cardId,
-      class: '1st Year',
-      section: stdSection,
-      attendance: 95,
-      attendanceStatus: 'Present',
-      photo: stdPhotoUrl || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80',
-      grade: 'Grade A'
-    });
-
-    if (!res.success) {
-      alert(res.message || "Failed to create student.");
-      return;
-    }
-
-    setShowAddStudentModal(false);
-    setStdName('');
-    setStdFather('');
-    setStdEmail('');
-    setStdCustomCard('');
-    setStdPhotoUrl('');
-    alert(`Student registered successfully!\nCard ID: ${cardId}`);
   };
 
   // 5. CREATE TEACHER (MATHS / SCIENCE)
   const handleCreateTeacher = (e: React.FormEvent) => {
     e.preventDefault();
     if (!teaName.trim() || !teaEmail.trim() || !teaPass.trim() || !teaSubject.trim()) {
-      alert("Name, Gmail, Password and Subject/Standard are required.");
+      showAdminToast("Name, Gmail, Password and Subject/Standard are required.");
       return;
     }
 
@@ -262,7 +282,7 @@ export const AdminPortal: React.FC = () => {
     });
 
     if (!res.success) {
-      alert(res.message || "Failed to register teacher.");
+      showAdminToast(res.message || "Failed to register teacher.");
       return;
     }
 
@@ -273,14 +293,14 @@ export const AdminPortal: React.FC = () => {
     setTeaQual('');
     setTeaExp('');
     setTeaPhotoUrl('');
-    alert(`Teacher registered successfully! Login Email: ${teaEmail}`);
+    showAdminToast(`Teacher registered successfully! Login Email: ${teaEmail}`);
   };
 
   // 6. CREATE NOTICE WITH PICTURE
   const handleCreateNotice = (e: React.FormEvent) => {
     e.preventDefault();
     if (!notTitle.trim() || !notDesc.trim()) {
-      alert("Title and details are required.");
+      showAdminToast("Title and details are required.");
       return;
     }
 
@@ -295,14 +315,14 @@ export const AdminPortal: React.FC = () => {
     setNotTitle('');
     setNotDesc('');
     setNotPhotoUrl('');
-    alert("Notice published to website!");
+    showAdminToast("Notice published to website!");
   };
 
   // 7. CREATE GALLERY PHOTO
   const handleCreateGallery = (e: React.FormEvent) => {
     e.preventDefault();
     if (!galTitle.trim() || !galPhotoUrl) {
-      alert("Photo title and image are required.");
+      showAdminToast("Photo title and image are required.");
       return;
     }
 
@@ -315,14 +335,14 @@ export const AdminPortal: React.FC = () => {
     setShowAddGalleryModal(false);
     setGalTitle('');
     setGalPhotoUrl('');
-    alert("Photo added to college gallery!");
+    showAdminToast("Photo added to college gallery!");
   };
 
   // 7B. LOCATION HANDLERS (Requested Feature)
   const handleCreateLocation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!locTitle.trim() || !locAddress.trim()) {
-      alert("Location title and physical address are required.");
+      showAdminToast("Location title and physical address are required.");
       return;
     }
     addLocation({
@@ -340,8 +360,7 @@ export const AdminPortal: React.FC = () => {
     setLocMapUrl('');
     setLocPhone('');
     setLocIsPrimary(false);
-    setAdminActionNotice(`Campus location "${locTitle.trim()}" added successfully!`);
-    setTimeout(() => setAdminActionNotice(null), 3500);
+    showAdminToast(`Campus location "${locTitle.trim()}" added successfully!`);
   };
 
   const handleStartEditLocation = (loc: any) => {
@@ -368,34 +387,30 @@ export const AdminPortal: React.FC = () => {
     });
     setShowEditLocationModal(false);
     setEditingLocationId(null);
-    setAdminActionNotice(`Location updated successfully!`);
-    setTimeout(() => setAdminActionNotice(null), 3500);
+    showAdminToast(`Location updated successfully!`);
   };
 
   const handleDeleteLocation = (id: string, title: string) => {
-    if (window.confirm(`Are you sure you want to delete the location "${title}"?`)) {
-      deleteLocation(id);
-      setAdminActionNotice(`Location "${title}" deleted.`);
-      setTimeout(() => setAdminActionNotice(null), 3500);
-    }
+    deleteLocation(id);
+    showAdminToast(`Location "${title}" deleted.`);
   };
 
   // 8. UPDATE BRANDING
   const handleSaveBranding = (e: React.FormEvent) => {
     e.preventDefault();
     updateBranding(brandTitle.trim(), brandLogoUrl);
-    alert("Branding and College Logo updated site-wide!");
+    showAdminToast("Branding and College Logo updated site-wide!");
   };
 
   // 9. UPDATE ADMIN PASSCODE
   const handleSaveSecurity = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAdminUser.trim() || !newAdminPass.trim()) {
-      alert("Admin username and password cannot be blank.");
+      showAdminToast("Admin username and password cannot be blank.");
       return;
     }
     updateAdminAuth(newAdminUser.trim(), newAdminPass.trim());
-    alert("Admin credentials updated successfully!");
+    showAdminToast("Admin credentials updated successfully!");
   };
 
   // 10. RESTORE BACKUP
@@ -408,9 +423,9 @@ export const AdminPortal: React.FC = () => {
       const content = evt.target?.result as string;
       const success = importBackup(content);
       if (success) {
-        alert("Database successfully restored from backup!");
+        showAdminToast("Database successfully restored from backup!");
       } else {
-        alert("Failed to restore backup. Invalid JSON file format.");
+        showAdminToast("Failed to restore backup. Invalid JSON file format.");
       }
     };
     reader.readAsText(file);
@@ -429,6 +444,27 @@ export const AdminPortal: React.FC = () => {
     };
     reader.readAsDataURL(file);
   };
+
+  const pendingStudents = db.students.filter(s => s.status === 'pending');
+  const approvedStudents = db.students.filter(s => s.status === 'approved');
+  const rejectedStudents = db.students.filter(s => s.status === 'rejected');
+
+  const filteredApprovalStudents = db.students.filter(s => {
+    if (approvalSubTab === 'pending' && s.status !== 'pending') return false;
+    if (approvalSubTab === 'approved' && s.status !== 'approved') return false;
+    if (approvalSubTab === 'rejected' && s.status !== 'rejected') return false;
+
+    if (!approvalSearchQuery.trim()) return true;
+    const q = approvalSearchQuery.toLowerCase();
+    return (
+      s.name.toLowerCase().includes(q) ||
+      s.roll.toLowerCase().includes(q) ||
+      (s.mobile && s.mobile.toLowerCase().includes(q)) ||
+      (s.email && s.email.toLowerCase().includes(q)) ||
+      s.class.toLowerCase().includes(q) ||
+      s.section.toLowerCase().includes(q)
+    );
+  });
 
   const filteredStudents = db.students.filter(s => {
     const matchSec = studentSectionFilter === 'All' || s.section === studentSectionFilter;
@@ -462,6 +498,28 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           <nav className="space-y-1 text-xs font-semibold max-h-[65vh] overflow-y-auto no-scrollbar">
+            {/* 1. PRINCIPAL APPROVALS (PRIMARY REQUESTED FEATURE) */}
+            <button
+              onClick={() => setActiveTab('approvals')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition ${
+                activeTab === 'approvals' ? 'bg-sky-600 text-white shadow-md' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <ShieldCheck className={`w-4 h-4 ${activeTab === 'approvals' ? 'text-white' : 'text-emerald-600'}`} />
+                <span className="font-bold">Principal Approvals</span>
+              </div>
+              {pendingStudents.length > 0 ? (
+                <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] rounded-full font-black animate-pulse">
+                  {pendingStudents.length}
+                </span>
+              ) : (
+                <span className={`px-1.5 py-0.5 text-[9px] rounded font-bold ${activeTab === 'approvals' ? 'bg-sky-500 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                  {approvedStudents.length} Active
+                </span>
+              )}
+            </button>
+
             <button
               onClick={() => setActiveTab('overview')}
               className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
@@ -678,11 +736,16 @@ export const AdminPortal: React.FC = () => {
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
                 <button
-                  onClick={() => setShowAddStudentModal(true)}
-                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-sky-500 hover:shadow-md transition text-center space-y-2 group"
+                  onClick={() => setActiveTab('approvals')}
+                  className="p-4 bg-white border border-slate-200 rounded-2xl hover:border-emerald-500 hover:shadow-md transition text-center space-y-2 group relative"
                 >
-                  <Users className="w-6 h-6 text-sky-600 mx-auto group-hover:scale-110 transition" />
-                  <span className="block text-xs font-bold text-slate-800">Register Student</span>
+                  {pendingStudents.length > 0 && (
+                    <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-full animate-pulse">
+                      {pendingStudents.length}
+                    </span>
+                  )}
+                  <ShieldCheck className="w-6 h-6 text-emerald-600 mx-auto group-hover:scale-110 transition" />
+                  <span className="block text-xs font-bold text-slate-800">Principal Approvals</span>
                 </button>
 
                 <button
@@ -710,6 +773,454 @@ export const AdminPortal: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB: PRINCIPAL APPROVAL MANAGEMENT (CORE REQUESTED SYSTEM) */}
+        {activeTab === 'approvals' && (
+          <div className="space-y-6">
+            {/* Header banner */}
+            <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-sky-100 shadow-sm relative overflow-hidden bg-gradient-to-br from-white via-sky-50/40 to-white">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center space-x-2 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Principal Authorization Gateway</span>
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                    Student Login & Portal Access Approvals
+                  </h2>
+                  <p className="text-xs text-slate-600 max-w-2xl">
+                    Every student account requires manual Principal authorization before dashboard access is permitted. Real-time approval requests are automatically dispatched to the Principal's configured mobile number.
+                  </p>
+                </div>
+
+                {/* Configured Principal Mobile Pill */}
+                <div className="p-3.5 bg-white rounded-2xl border border-sky-200 shadow-xs space-y-1.5">
+                  <div className="flex items-center justify-between space-x-3 text-xs">
+                    <span className="font-bold text-slate-500 flex items-center space-x-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-sky-600" />
+                      <span>Principal Mobile (Notifications):</span>
+                    </span>
+                    <button
+                      onClick={() => setActiveTab('principal')}
+                      className="text-sky-600 hover:text-sky-800 font-bold text-[11px] underline"
+                    >
+                      Configure
+                    </button>
+                  </div>
+                  <div className="font-mono font-bold text-slate-900 text-sm">
+                    {db.principal.approvalMobileNumber || db.principal.phone || '+92 300 9876543'}
+                  </div>
+                  <div className="text-[10px] text-emerald-600 font-semibold flex items-center space-x-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Active Gateway Routing</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status summary counters */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-6 pt-5 border-t border-sky-100">
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('pending')}
+                  className={`p-3 rounded-2xl border text-left transition ${
+                    approvalSubTab === 'pending'
+                      ? 'bg-amber-500 text-white border-amber-600 shadow-md scale-102'
+                      : 'bg-white border-slate-200 hover:border-amber-400 text-slate-700'
+                  }`}
+                >
+                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${approvalSubTab === 'pending' ? 'text-amber-100' : 'text-slate-400'}`}>
+                    Pending Approval
+                  </span>
+                  <span className="text-2xl font-black block mt-0.5">{pendingStudents.length}</span>
+                  <span className={`text-[10px] font-semibold ${approvalSubTab === 'pending' ? 'text-white' : 'text-amber-600'}`}>
+                    Requires Review
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('approved')}
+                  className={`p-3 rounded-2xl border text-left transition ${
+                    approvalSubTab === 'approved'
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-md scale-102'
+                      : 'bg-white border-slate-200 hover:border-emerald-400 text-slate-700'
+                  }`}
+                >
+                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${approvalSubTab === 'approved' ? 'text-emerald-100' : 'text-slate-400'}`}>
+                    Approved / Active
+                  </span>
+                  <span className="text-2xl font-black block mt-0.5">{approvedStudents.length}</span>
+                  <span className={`text-[10px] font-semibold ${approvalSubTab === 'approved' ? 'text-white' : 'text-emerald-600'}`}>
+                    Full Portal Access
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('rejected')}
+                  className={`p-3 rounded-2xl border text-left transition ${
+                    approvalSubTab === 'rejected'
+                      ? 'bg-rose-600 text-white border-rose-700 shadow-md scale-102'
+                      : 'bg-white border-slate-200 hover:border-rose-400 text-slate-700'
+                  }`}
+                >
+                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${approvalSubTab === 'rejected' ? 'text-rose-100' : 'text-slate-400'}`}>
+                    Rejected Requests
+                  </span>
+                  <span className="text-2xl font-black block mt-0.5">{rejectedStudents.length}</span>
+                  <span className={`text-[10px] font-semibold ${approvalSubTab === 'rejected' ? 'text-white' : 'text-rose-600'}`}>
+                    Access Blocked
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('notifications')}
+                  className={`p-3 rounded-2xl border text-left transition ${
+                    approvalSubTab === 'notifications'
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-md scale-102'
+                      : 'bg-white border-slate-200 hover:border-indigo-400 text-slate-700'
+                  }`}
+                >
+                  <span className={`text-[10px] font-bold uppercase tracking-wider block ${approvalSubTab === 'notifications' ? 'text-indigo-100' : 'text-slate-400'}`}>
+                    Mobile Notifications Log
+                  </span>
+                  <span className="text-2xl font-black block mt-0.5">{db.notificationLogs?.length || 0}</span>
+                  <span className={`text-[10px] font-semibold ${approvalSubTab === 'notifications' ? 'text-white' : 'text-indigo-600'}`}>
+                    SMS / WhatsApp Audit
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Notification / Toast Banner */}
+            {adminActionNotice && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-bold flex items-center space-x-2 shadow-sm animate-fade-in">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                <span>{adminActionNotice}</span>
+              </div>
+            )}
+
+            {/* Sub-tab Navigation & Search */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex items-center p-1 bg-slate-100 rounded-2xl text-xs font-bold overflow-x-auto no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('pending')}
+                  className={`px-3.5 py-2 rounded-xl transition whitespace-nowrap flex items-center space-x-1.5 ${
+                    approvalSubTab === 'pending'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>Pending Requests</span>
+                  {pendingStudents.length > 0 && (
+                    <span className="px-1.5 py-0.2 bg-amber-400 text-amber-950 rounded-full text-[10px] font-black">
+                      {pendingStudents.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('approved')}
+                  className={`px-3.5 py-2 rounded-xl transition whitespace-nowrap ${
+                    approvalSubTab === 'approved'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Approved ({approvedStudents.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('rejected')}
+                  className={`px-3.5 py-2 rounded-xl transition whitespace-nowrap ${
+                    approvalSubTab === 'rejected'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Rejected ({rejectedStudents.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('all')}
+                  className={`px-3.5 py-2 rounded-xl transition whitespace-nowrap ${
+                    approvalSubTab === 'all'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All Requests ({db.students.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('notifications')}
+                  className={`px-3.5 py-2 rounded-xl transition whitespace-nowrap flex items-center space-x-1 ${
+                    approvalSubTab === 'notifications'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>SMS/Mobile Logs</span>
+                </button>
+              </div>
+
+              {/* Search Bar */}
+              {approvalSubTab !== 'notifications' && (
+                <div className="relative sm:w-72">
+                  <input
+                    type="text"
+                    value={approvalSearchQuery}
+                    onChange={e => setApprovalSearchQuery(e.target.value)}
+                    placeholder="Search by Name, Roll, Mobile..."
+                    className="w-full pl-9 pr-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-sky-500"
+                  />
+                  <Users className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                </div>
+              )}
+            </div>
+
+            {/* TAB CONTENT: REQUESTS LIST */}
+            {approvalSubTab !== 'notifications' && (
+              <div className="space-y-3.5">
+                {filteredApprovalStudents.length === 0 ? (
+                  <div className="glass-panel p-12 text-center rounded-3xl border border-dashed border-slate-300 space-y-2">
+                    <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />
+                    <h4 className="text-base font-bold text-slate-700">No requests found</h4>
+                    <p className="text-xs text-slate-400">
+                      {approvalSubTab === 'pending'
+                        ? 'There are currently no pending student approval requests. All registered students have been reviewed.'
+                        : 'No student records match the selected filter or search term.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3.5">
+                    {filteredApprovalStudents.map(student => (
+                      <div
+                        key={student.id}
+                        className={`glass-panel p-5 rounded-2xl border transition shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white ${
+                          student.status === 'pending'
+                            ? 'border-amber-200 hover:border-amber-400 bg-amber-50/20'
+                            : student.status === 'approved'
+                            ? 'border-slate-200 hover:border-emerald-300'
+                            : 'border-rose-200 hover:border-rose-300 bg-rose-50/20'
+                        }`}
+                      >
+                        {/* Student Details Left */}
+                        <div className="flex items-start space-x-4">
+                          <img
+                            src={student.photo}
+                            alt={student.name}
+                            className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-200 shadow-xs flex-shrink-0"
+                          />
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-base font-black text-slate-900">{student.name}</h3>
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                  student.status === 'pending'
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : student.status === 'approved'
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : 'bg-rose-100 text-rose-800 border border-rose-300'
+                                }`}
+                              >
+                                {student.status === 'pending'
+                                  ? '⏳ Pending Approval'
+                                  : student.status === 'approved'
+                                  ? '✅ Approved / Active'
+                                  : '❌ Rejected'}
+                              </span>
+                              <span className="px-2 py-0.5 bg-sky-50 text-sky-700 text-[10px] font-bold rounded">
+                                Section {student.section}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-0.5 text-xs text-slate-500 font-medium">
+                              <div>
+                                <span className="text-slate-400 font-bold">Roll:</span> <strong className="text-slate-800 font-mono">{student.roll}</strong>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 font-bold">Class:</span> <span className="text-slate-800">{student.class}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 font-bold">Father:</span> <span className="text-slate-800">{student.father}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 font-bold">Mobile:</span> <span className="text-slate-800 font-mono font-bold">{student.mobile}</span>
+                              </div>
+                              <div className="truncate">
+                                <span className="text-slate-400 font-bold">Email:</span> <span className="text-slate-800 font-mono">{student.email || 'N/A'}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 font-bold">Card ID:</span> <span className="text-purple-700 font-mono font-bold">{student.cardId}</span>
+                              </div>
+                            </div>
+
+                            {/* Timestamps */}
+                            <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-400">
+                              <span className="flex items-center space-x-1">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span>Requested: <strong>{student.requestedAt}</strong></span>
+                              </span>
+                              {student.approvedAt && (
+                                <span className="flex items-center space-x-1 text-emerald-700 font-medium">
+                                  <Check className="w-3 h-3" />
+                                  <span>Approved: <strong>{student.approvedAt}</strong></span>
+                                </span>
+                              )}
+                              {student.rejectedAt && (
+                                <span className="flex items-center space-x-1 text-rose-700 font-medium">
+                                  <X className="w-3 h-3" />
+                                  <span>Rejected: <strong>{student.rejectedAt}</strong></span>
+                                </span>
+                              )}
+                            </div>
+
+                            {student.rejectionReason && (
+                              <p className="text-[11px] text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 mt-1">
+                                Reason: {student.rejectionReason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons Right (Approve | Reject | View Details) */}
+                        <div className="flex flex-wrap md:flex-col items-center sm:items-end gap-2 w-full md:w-auto pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 flex-shrink-0">
+                          {student.status === 'pending' && (
+                            <div className="flex items-center space-x-2 w-full md:w-auto">
+                              <button
+                                type="button"
+                                onClick={() => handleApproveStudent(student.id, student.name)}
+                                className="flex-1 md:flex-initial px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-1.5 transition active:scale-95"
+                                title="Approve Student Account"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Approve Access</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRejectModal(student)}
+                                className="flex-1 md:flex-initial px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition active:scale-95"
+                                title="Reject Student Account"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                <span>Reject</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {student.status === 'approved' && (
+                            <div className="flex items-center space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRejectModal(student)}
+                                className="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 rounded-xl text-[11px] font-bold border border-slate-200 transition"
+                              >
+                                Revoke Approval
+                              </button>
+                            </div>
+                          )}
+
+                          {student.status === 'rejected' && (
+                            <div className="flex items-center space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => handleApproveStudent(student.id, student.name)}
+                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-[11px] font-bold border border-emerald-200 transition"
+                              >
+                                Re-Approve Access
+                              </button>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStudentForDetails(student)}
+                            className="px-3.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 rounded-xl text-xs font-bold border border-sky-200 flex items-center space-x-1.5 transition"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View Details</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB CONTENT: SMS / WHATSAPP DISPATCH LOG */}
+            {approvalSubTab === 'notifications' && (
+              <div className="glass-panel p-6 rounded-3xl border border-sky-100 shadow-sm space-y-4 bg-white">
+                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 flex items-center space-x-2">
+                      <Send className="w-4 h-4 text-indigo-600" />
+                      <span>Principal Mobile Notifications Dispatch Audit Log</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Real-time delivery verification for student registration notifications sent to Principal mobile: <strong className="text-slate-800">{db.principal.approvalMobileNumber || db.principal.phone || '+92 300 9876543'}</strong>
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 text-xs font-bold">
+                    {db.notificationLogs?.length || 0} Total Messages
+                  </span>
+                </div>
+
+                {(!db.notificationLogs || db.notificationLogs.length === 0) ? (
+                  <p className="text-xs text-slate-400 py-6 text-center">No notifications dispatched yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {db.notificationLogs.map(log => (
+                      <div
+                        key={log.id}
+                        className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-indigo-100 text-indigo-900">
+                              {log.channel}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                              Status: {log.status}
+                            </span>
+                            <span className="font-bold text-slate-700">To Principal Mobile: {log.principalMobile}</span>
+                          </div>
+                          <span className="text-[11px] text-slate-400 font-mono">{log.timestamp}</span>
+                        </div>
+
+                        <div className="bg-white p-3 rounded-xl border border-slate-200 font-mono text-[11px] text-slate-800 whitespace-pre-wrap leading-relaxed">
+                          {log.message}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[11px] text-slate-500">
+                            Student ID: <strong>{log.studentId}</strong> • Name: <strong>{log.studentName}</strong> ({log.roll})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const std = db.students.find(s => s.id === log.studentId || s.approvalToken === log.actionToken);
+                              if (std) setSelectedStudentForDetails(std);
+                            }}
+                            className="text-sky-600 hover:text-sky-800 font-bold text-xs underline flex items-center space-x-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>View Associated Student</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1184,14 +1695,14 @@ export const AdminPortal: React.FC = () => {
           </div>
         )}
 
-        {/* TAB: STUDENTS (DP & CARD ID) */}
+        {/* TAB: STUDENTS DIRECTORY (VIEW ONLY - MANUAL CREATION REMOVED) */}
         {activeTab === 'students' && (
           <div className="glass-panel p-6 rounded-2xl space-y-5 border border-sky-100 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <h2 className="text-xl font-black text-slate-900">Student Directory (Cards & DP)</h2>
+                <h2 className="text-xl font-black text-slate-900">Student Directory (Cards & Approvals)</h2>
                 <p className="text-xs text-slate-500">
-                  Register students with photograph, custom or auto Card ID, and Gmail login
+                  Registered students directory. Direct student generation is removed — all students register through the portal and require Principal approval.
                 </p>
               </div>
 
@@ -1208,11 +1719,12 @@ export const AdminPortal: React.FC = () => {
                 </select>
 
                 <button
-                  onClick={() => setShowAddStudentModal(true)}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
+                  type="button"
+                  onClick={() => { setActiveTab('approvals'); setApprovalSubTab('pending'); }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Register Student</span>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Review Approvals ({pendingStudents.length} Pending)</span>
                 </button>
               </div>
             </div>
@@ -1222,7 +1734,7 @@ export const AdminPortal: React.FC = () => {
               type="text"
               value={studentSearch}
               onChange={e => setStudentSearch(e.target.value)}
-              placeholder="Search by Name, Roll Number, Card ID, or Gmail..."
+              placeholder="Search by Name, Roll Number, Card ID, Mobile or Gmail..."
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium bg-white"
             />
 
@@ -1232,10 +1744,11 @@ export const AdminPortal: React.FC = () => {
                   <tr>
                     <th className="p-3">Student & DP</th>
                     <th className="p-3">Father</th>
-                    <th className="p-3">Gmail (Login)</th>
+                    <th className="p-3">Mobile Number</th>
+                    <th className="p-3">Gmail / Card ID</th>
                     <th className="p-3">Section</th>
                     <th className="p-3">Roll No</th>
-                    <th className="p-3">Card ID (Barcode)</th>
+                    <th className="p-3">Approval Status</th>
                     <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -1250,20 +1763,49 @@ export const AdminPortal: React.FC = () => {
                         />
                         <div>
                           <span className="font-bold text-slate-900 block">{std.name}</span>
-                          <span className="text-[10px] text-slate-400">Pass: {std.pass}</span>
+                          <span className="text-[10px] text-slate-400">Class: {std.class}</span>
                         </div>
                       </td>
                       <td className="p-3 text-slate-600">{std.father}</td>
-                      <td className="p-3 font-mono text-slate-700">{std.email}</td>
+                      <td className="p-3 font-mono font-bold text-slate-800">{std.mobile || 'N/A'}</td>
+                      <td className="p-3 font-mono text-slate-700">
+                        <span className="block">{std.email}</span>
+                        <span className="text-[10px] text-purple-700 font-bold">{std.cardId}</span>
+                      </td>
                       <td className="p-3">
                         <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-bold">
                           {std.section}
                         </span>
                       </td>
                       <td className="p-3 font-mono">{std.roll}</td>
-                      <td className="p-3 font-mono font-bold text-purple-700">{std.cardId}</td>
-                      <td className="p-3 text-right">
+                      <td className="p-3">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            std.status === 'pending'
+                              ? 'bg-amber-100 text-amber-900'
+                              : std.status === 'approved'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {std.status === 'pending'
+                            ? '⏳ Pending'
+                            : std.status === 'approved'
+                            ? '✅ Active'
+                            : '❌ Rejected'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right space-x-1">
                         <button
+                          type="button"
+                          onClick={() => setSelectedStudentForDetails(std)}
+                          className="text-sky-600 hover:text-sky-800 p-1"
+                          title="View student dossier"
+                        >
+                          <Eye className="w-4 h-4 inline" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             deleteStudent(std.id);
                             setAdminActionNotice(`Student "${std.name}" deleted.`);
@@ -1272,7 +1814,7 @@ export const AdminPortal: React.FC = () => {
                           className="text-red-500 hover:text-red-700 p-1"
                           title="Remove student"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4 inline" />
                         </button>
                       </td>
                     </tr>
@@ -1535,6 +2077,70 @@ export const AdminPortal: React.FC = () => {
                 <span>Save Principal Profile</span>
               </button>
             </form>
+
+            {/* SECURE PRINCIPAL MOBILE NUMBER CONFIGURATION (REQUESTED FEATURE) */}
+            <div className="glass-panel p-6 rounded-2xl space-y-4 border-2 border-emerald-300 bg-emerald-50/20 shadow-sm mt-6">
+              <div className="flex items-center space-x-2 text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                <Smartphone className="w-4 h-4 text-emerald-600" />
+                <span>Approval Notification Routing</span>
+              </div>
+              <h3 className="text-base font-black text-slate-900">
+                Principal Mobile Number for Approval Notifications
+              </h3>
+              <p className="text-xs text-slate-600">
+                Configure the Principal's mobile phone number for real-time notifications. When a student registers, their complete information is automatically dispatched to this number for authorization.
+              </p>
+
+              {prMobileNotice && (
+                <div className="p-3 bg-emerald-100 border border-emerald-300 rounded-xl text-emerald-900 text-xs font-bold flex items-center space-x-2 animate-fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{prMobileNotice}</span>
+                </div>
+              )}
+
+              {prMobileError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold flex items-center space-x-2 animate-fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                  <span>{prMobileError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSavePrincipalMobile} className="space-y-3 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Principal Mobile Number (Required) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={prApprovalMobileInput}
+                      onChange={e => {
+                        setPrApprovalMobileInput(e.target.value);
+                        setPrMobileError(null);
+                      }}
+                      placeholder="+92 300 9876543 or 03001234567"
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 bg-white font-mono font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <Smartphone className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Format: Country code supported (e.g. +92 300 1234567). Must contain at least 10 digits. Not exposed publicly.
+                  </p>
+                </div>
+
+                <div className="pt-1 flex items-center space-x-3">
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md shadow-emerald-600/20 flex items-center space-x-1.5 transition active:scale-95"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save Principal Mobile Number</span>
+                  </button>
+                  <span className="text-[11px] text-slate-400 font-semibold">🔒 Protected Admin Setting</span>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
@@ -1584,11 +2190,8 @@ export const AdminPortal: React.FC = () => {
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          if (window.confirm(`Delete photo "${img.title}" from college gallery?`)) {
-                            deleteGalleryItem(img.id);
-                            setAdminActionNotice(`Photo "${img.title}" deleted successfully!`);
-                            setTimeout(() => setAdminActionNotice(null), 3500);
-                          }
+                          deleteGalleryItem(img.id);
+                          showAdminToast(`Photo "${img.title}" deleted successfully!`);
                         }}
                         title="Delete this photo"
                         className="absolute top-2 right-2 p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-md transition hover:scale-110 active:scale-95 z-10"
@@ -1613,11 +2216,8 @@ export const AdminPortal: React.FC = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      if (window.confirm(`Delete photo "${img.title}" from college gallery?`)) {
-                        deleteGalleryItem(img.id);
-                        setAdminActionNotice(`Photo "${img.title}" deleted from college gallery.`);
-                        setTimeout(() => setAdminActionNotice(null), 3500);
-                      }
+                      deleteGalleryItem(img.id);
+                      showAdminToast(`Photo "${img.title}" deleted from college gallery.`);
                     }}
                     className="w-full mt-2.5 py-1.5 px-2 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-xl text-[11px] font-bold border border-red-200 hover:border-red-600 transition flex items-center justify-center space-x-1.5 shadow-2xs"
                   >
@@ -1842,119 +2442,198 @@ export const AdminPortal: React.FC = () => {
           </div>
         )}
 
-        {/* MODAL: ADD STUDENT (WITH DP & CARD ID) */}
-        {showAddStudentModal && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="glass-panel bg-white/95 max-w-lg w-full rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
-              <div className="flex items-center justify-between border-b pb-2">
-                <h3 className="font-black text-slate-900 text-sm">Register Student (DP & Card ID)</h3>
-                <button onClick={() => setShowAddStudentModal(false)} className="text-slate-400">
+        {/* MODAL: VIEW STUDENT DETAILS DOSSIER */}
+        {selectedStudentForDetails && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="glass-panel bg-white max-w-lg w-full rounded-3xl p-6 sm:p-7 space-y-5 shadow-2xl border border-sky-200 max-h-[90vh] overflow-y-auto no-scrollbar">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div className="flex items-center space-x-2.5">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-black text-slate-900 text-sm">Student Access Dossier & Verification</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudentForDetails(null)}
+                  className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleCreateStudent} className="space-y-3.5 text-xs font-medium">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">Full Student Name *</label>
-                    <input
-                      type="text"
-                      required
-                      value={stdName}
-                      onChange={e => setStdName(e.target.value)}
-                      placeholder="e.g. Usman Ghani"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">Father's Name</label>
-                    <input
-                      type="text"
-                      value={stdFather}
-                      onChange={e => setStdFather(e.target.value)}
-                      placeholder="e.g. Muhammad Ghani"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">Student Gmail (Login) *</label>
-                    <input
-                      type="email"
-                      required
-                      value={stdEmail}
-                      onChange={e => setStdEmail(e.target.value)}
-                      placeholder="student@gmail.com"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">Password *</label>
-                    <input
-                      type="password"
-                      required
-                      value={stdPass}
-                      onChange={e => setStdPass(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">Assign Section</label>
-                    <select
-                      value={stdSection}
-                      onChange={e => setStdSection(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+              {/* Student Header */}
+              <div className="flex items-center space-x-4 p-4 rounded-2xl bg-sky-50/60 border border-sky-100">
+                <img
+                  src={selectedStudentForDetails.photo}
+                  alt={selectedStudentForDetails.name}
+                  className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-md flex-shrink-0"
+                />
+                <div className="overflow-hidden">
+                  <h4 className="text-base font-black text-slate-900 truncate">{selectedStudentForDetails.name}</h4>
+                  <p className="text-xs text-slate-500 font-medium">Father: {selectedStudentForDetails.father}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        selectedStudentForDetails.status === 'pending'
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                          : selectedStudentForDetails.status === 'approved'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-rose-100 text-rose-800 border border-rose-300'
+                      }`}
                     >
-                      {db.sections.map(s => (
-                        <option key={s.id} value={s.name}>Section {s.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-slate-700 font-bold mb-1">
-                      Custom Card ID (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={stdCustomCard}
-                      onChange={e => setStdCustomCard(e.target.value)}
-                      placeholder="Leave blank for auto card code"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
-                    />
+                      {selectedStudentForDetails.status === 'pending'
+                        ? 'Pending Principal Approval'
+                        : selectedStudentForDetails.status === 'approved'
+                        ? 'Approved / Active'
+                        : 'Access Rejected'}
+                    </span>
+                    <span className="text-[10px] font-bold text-sky-700 bg-white px-2 py-0.5 rounded border border-sky-200">
+                      Section {selectedStudentForDetails.section}
+                    </span>
                   </div>
                 </div>
+              </div>
 
+              {/* Data Table */}
+              <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">
-                    Upload Student Picture (DP) from Device
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={e => handlePhotoUploadHelper(e, setStdPhotoUrl)}
-                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
-                  />
-                  {stdPhotoUrl && (
-                    <div className="mt-2 flex items-center space-x-2">
-                      <img src={stdPhotoUrl} alt="Preview" className="w-10 h-10 rounded-xl object-cover border" />
-                      <span className="text-[11px] text-emerald-600 font-bold">Photo Loaded Successfully</span>
-                    </div>
-                  )}
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Roll Number:</span>
+                  <span className="font-mono font-bold text-slate-900 text-sm">{selectedStudentForDetails.roll}</span>
                 </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Digital Card ID:</span>
+                  <span className="font-mono font-bold text-purple-700 text-sm">{selectedStudentForDetails.cardId}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Academic Class:</span>
+                  <span className="font-semibold text-slate-800">{selectedStudentForDetails.class}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Registered Mobile:</span>
+                  <span className="font-mono font-bold text-slate-900">{selectedStudentForDetails.mobile}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Registered Email:</span>
+                  <span className="font-mono text-slate-800">{selectedStudentForDetails.email || 'None Provided'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Request Date & Time:</span>
+                  <span className="text-slate-700 font-medium">{selectedStudentForDetails.requestedAt}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                    {selectedStudentForDetails.approvedAt ? 'Approved Date & Time:' : selectedStudentForDetails.rejectedAt ? 'Rejected Date & Time:' : 'Review Status:'}
+                  </span>
+                  <span className="text-slate-700 font-medium">
+                    {selectedStudentForDetails.approvedAt || selectedStudentForDetails.rejectedAt || 'Awaiting Principal Action'}
+                  </span>
+                </div>
+              </div>
 
+              {/* Principal Mobile Notification Dispatch Note */}
+              <div className="p-3 bg-sky-50 rounded-xl border border-sky-200 text-xs text-sky-900 flex items-start space-x-2.5">
+                <Smartphone className="w-4 h-4 text-sky-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-0.5 text-[11px]">
+                  <p className="font-bold">Principal Mobile Notification Dispatched:</p>
+                  <p className="text-slate-600">
+                    Target mobile: <code className="font-bold">{db.principal.approvalMobileNumber || db.principal.phone || '+92 300 9876543'}</code>
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end space-x-2.5 border-t border-slate-100">
                 <button
-                  type="submit"
-                  className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow mt-2"
+                  type="button"
+                  onClick={() => setSelectedStudentForDetails(null)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold"
                 >
-                  Save & Register Student
+                  Close
                 </button>
-              </form>
+
+                {selectedStudentForDetails.status !== 'approved' && (
+                  <button
+                    type="button"
+                    onClick={() => handleApproveStudent(selectedStudentForDetails.id, selectedStudentForDetails.name)}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/25 flex items-center space-x-1.5 transition active:scale-95"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Approve Student Access</span>
+                  </button>
+                )}
+
+                {selectedStudentForDetails.status !== 'rejected' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleOpenRejectModal(selectedStudentForDetails);
+                      setSelectedStudentForDetails(null);
+                    }}
+                    className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition active:scale-95"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>Reject Request</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: REJECT STUDENT CONFIRMATION */}
+        {studentToReject && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="glass-panel bg-white max-w-md w-full rounded-3xl p-6 space-y-4 shadow-2xl border border-rose-200">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center space-x-2 text-rose-700">
+                  <AlertCircle className="w-5 h-5 text-rose-600" />
+                  <h3 className="font-black text-slate-900 text-sm">Reject Student Access Request</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStudentToReject(null)}
+                  className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-3 bg-rose-50 rounded-2xl border border-rose-200 text-xs text-rose-800 space-y-1">
+                <p className="font-bold">You are rejecting access for:</p>
+                <p>• <strong>{studentToReject.name}</strong> (Roll: {studentToReject.roll}, Section: {studentToReject.section})</p>
+                <p>• Mobile: {studentToReject.mobile}</p>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold text-xs mb-1">
+                  Rejection Reason (Message displayed to student upon login) *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={rejectionReasonInput}
+                  onChange={e => setRejectionReasonInput(e.target.value)}
+                  placeholder="Your account has not been approved by the Principal."
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-rose-500 font-medium"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2.5">
+                <button
+                  type="button"
+                  onClick={() => setStudentToReject(null)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmReject}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 flex items-center space-x-1.5 transition active:scale-95"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Confirm Rejection</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

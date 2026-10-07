@@ -54,6 +54,7 @@ export const TeacherPortal: React.FC = () => {
   const [alsoAddToGallery, setAlsoAddToGallery] = useState(false);
   const [galleryCategory, setGalleryCategory] = useState<'Campus' | 'Labs' | 'Maths' | 'Events' | 'Sports'>('Maths');
   const [actionSuccessNotice, setActionSuccessNotice] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   if (!currentTeacher) {
     return (
@@ -87,24 +88,26 @@ export const TeacherPortal: React.FC = () => {
     setMatTitle('');
     setMatVideoUrl('');
     setMatDesc('');
+    setUploadError(null);
     setAlsoAddToGallery(false);
     setShowUploadModal(true);
   };
 
   const handleMaterialSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setUploadError(null);
     if (!matTitle.trim()) {
-      alert("Please enter a title for the material.");
+      setUploadError("Please enter a title for the material.");
       return;
     }
 
     if (matType === 'Video' && !matVideoUrl.trim()) {
-      alert("Please provide a valid Video URL or Google Drive link.");
+      setUploadError("Please provide a valid Video URL or Google Drive link.");
       return;
     }
 
     if (matType !== 'Video' && !fileDataUrl) {
-      alert("Please select a file or photo from your mobile gallery.");
+      setUploadError("Please select a file or photo from your device.");
       return;
     }
 
@@ -401,9 +404,9 @@ export const TeacherPortal: React.FC = () => {
                       <span className="text-[10px] text-slate-400">ID: {mat.id}</span>
                       <button
                         onClick={() => {
-                          if (window.confirm(`Delete "${mat.title}"?`)) {
-                            deleteMaterial(mat.id);
-                          }
+                          deleteMaterial(mat.id);
+                          setActionSuccessNotice(`Material "${mat.title}" deleted.`);
+                          setTimeout(() => setActionSuccessNotice(null), 3000);
                         }}
                         className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
                         title="Delete material"
@@ -643,6 +646,12 @@ export const TeacherPortal: React.FC = () => {
               </div>
 
               <form onSubmit={handleMaterialSubmit} className="space-y-3.5 text-xs font-medium">
+                {uploadError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                    <span>{uploadError}</span>
+                  </div>
+                )}
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">Resource Title *</label>
                   <input

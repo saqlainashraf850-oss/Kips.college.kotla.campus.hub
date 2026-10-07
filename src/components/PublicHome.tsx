@@ -38,7 +38,8 @@ import {
   FileText,
   HelpCircle,
   ChevronDown,
-  ArrowUp
+  ArrowUp,
+  AlertCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GalleryItem } from '../types';
@@ -75,6 +76,14 @@ export const PublicHome: React.FC = () => {
   const [inquiryProgram, setInquiryProgram] = useState('FSc Pre-Engineering');
   const [inquiryMessage, setInquiryMessage] = useState('');
   const [inquirySubmitted, setInquirySubmitted] = useState(false);
+  const [inquiryError, setInquiryError] = useState<string | null>(null);
+  const [toastNotice, setToastNotice] = useState<string | null>(null);
+  const [selectedFacultyModal, setSelectedFacultyModal] = useState<any | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastNotice(msg);
+    setTimeout(() => setToastNotice(null), 4000);
+  };
 
   // Video Modal State
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
@@ -108,8 +117,9 @@ export const PublicHome: React.FC = () => {
 
   const handleInquirySubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setInquiryError(null);
     if (!inquiryName.trim() || !inquiryPhone.trim()) {
-      alert("Please fill your Name and Phone Number.");
+      setInquiryError("Please fill your Name and Phone Number.");
       return;
     }
 
@@ -122,6 +132,7 @@ export const PublicHome: React.FC = () => {
     });
 
     setInquirySubmitted(true);
+    setInquiryError(null);
     setInquiryName('');
     setInquiryPhone('');
     setInquiryEmail('');
@@ -297,7 +308,11 @@ export const PublicHome: React.FC = () => {
                 {/* 4. Download Prospectus */}
                 <a
                   href="#admissions"
-                  onClick={() => alert("Official College Prospectus 2026-27 is downloading...")}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    showToast("Official College Prospectus 2026-27 is preparing for download...");
+                    scrollToSection('admissions');
+                  }}
                   className="px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/30 transition transform hover:-translate-y-0.5 flex items-center space-x-2"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -624,13 +639,17 @@ export const PublicHome: React.FC = () => {
 
             <div className="flex flex-wrap gap-3 pt-2">
               <button
-                onClick={() => alert("Please fill the Admission Inquiry form on the right to start!")}
+                onClick={() => {
+                  const input = document.querySelector('input[placeholder="Enter your name"]') as HTMLInputElement;
+                  if (input) input.focus();
+                  showToast("Please fill the Admission Inquiry form below to start your application.");
+                }}
                 className="px-5 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow"
               >
                 Apply Online
               </button>
               <button
-                onClick={() => alert("Downloading KIPS College Prospectus PDF...")}
+                onClick={() => showToast("College Prospectus 2026-27 PDF is being generated for download.")}
                 className="px-5 py-3 bg-white border border-sky-200 text-sky-700 hover:bg-sky-50 rounded-xl text-xs font-bold shadow-sm"
               >
                 Download Prospectus
@@ -652,6 +671,12 @@ export const PublicHome: React.FC = () => {
               </div>
             ) : (
               <form onSubmit={handleInquirySubmit} className="space-y-3.5 text-xs font-medium">
+                {inquiryError && (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center space-x-2 animate-fade-in">
+                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                    <span>{inquiryError}</span>
+                  </div>
+                )}
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">Full Name *</label>
                   <input
@@ -789,7 +814,7 @@ export const PublicHome: React.FC = () => {
 
               <div className="pt-3 border-t border-slate-100">
                 <button
-                  onClick={() => alert(`Faculty Contact: ${t.name}\nEmail: ${t.email}\nSubject: ${t.subject}\nSection In-charge: ${t.inchargeSection || 'None'}`)}
+                  onClick={() => setSelectedFacultyModal(t)}
                   className="w-full py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-xl text-xs transition"
                 >
                   View Profile
@@ -1252,7 +1277,7 @@ export const PublicHome: React.FC = () => {
               <div className="pt-1 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700">Transport Contact: {db.contact.emergencyHelpline}</span>
                 <button
-                  onClick={() => alert(`Transport Officer Contact: ${db.contact.emergencyHelpline}\nDedicated vans cover all nearby towns with verified drivers.`)}
+                  onClick={() => showToast(`Transport Helpline: ${db.contact.emergencyHelpline} | Dedicated vans cover all nearby towns with verified drivers.`)}
                   className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-sm"
                 >
                   Details
@@ -1411,6 +1436,77 @@ export const PublicHome: React.FC = () => {
               Explore our state-of-the-art physics labs, chemistry workshops, mathematics problem-solving tracks, and interactive classrooms on Bhimber Road.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Faculty Profile Modal */}
+      {selectedFacultyModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-sky-100 space-y-4 relative">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-black text-slate-900">Faculty Specialist Profile</h3>
+              <button
+                type="button"
+                onClick={() => setSelectedFacultyModal(null)}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <img
+                src={selectedFacultyModal.photo}
+                alt={selectedFacultyModal.name}
+                className="w-16 h-16 rounded-2xl object-cover border-2 border-sky-200"
+              />
+              <div>
+                <h4 className="font-black text-slate-900 text-base">{selectedFacultyModal.name}</h4>
+                <p className="text-xs font-bold text-sky-600">{selectedFacultyModal.subject}</p>
+                <p className="text-[11px] text-slate-500">{selectedFacultyModal.qualification || 'Senior Subject Specialist'}</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-2xl space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-bold">Email:</span>
+                <span className="font-mono text-slate-800">{selectedFacultyModal.email}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-bold">Section In-charge:</span>
+                <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-bold">
+                  {selectedFacultyModal.inchargeSection ? `Section ${selectedFacultyModal.inchargeSection}` : 'General Faculty'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-bold">Experience:</span>
+                <span className="text-slate-700 font-semibold">{selectedFacultyModal.experience || '8+ Years Teaching'}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedFacultyModal(null)}
+              className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition shadow"
+            >
+              Close Profile
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {toastNotice && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-sky-500/40 flex items-center space-x-3 animate-fade-in">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <p className="text-xs font-medium leading-relaxed flex-1">{toastNotice}</p>
+          <button
+            type="button"
+            onClick={() => setToastNotice(null)}
+            className="p-1 text-slate-400 hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 

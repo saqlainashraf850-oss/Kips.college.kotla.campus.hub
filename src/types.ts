@@ -16,6 +16,7 @@ export interface PrincipalInfo {
   message: string;
   phone: string;
   email: string;
+  approvalMobileNumber?: string;
 }
 
 export interface ContactInfo {
@@ -37,6 +38,8 @@ export interface SectionItem {
   capacity: number;
 }
 
+export type StudentApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 export interface StudentItem {
   id: string;
   name: string;
@@ -47,11 +50,34 @@ export interface StudentItem {
   cardId: string;
   class: string;
   section: string; // e.g. CB1 or CB2
+  mobile: string;
+  status: StudentApprovalStatus;
+  requestedAt: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  approvalToken: string;
   attendance: number;
   attendanceStatus?: 'Present' | 'Absent' | 'Late';
   photo: string;
   grade?: string;
   joinedDate?: string;
+}
+
+export interface NotificationLogItem {
+  id: string;
+  studentId: string;
+  studentName: string;
+  roll: string;
+  class: string;
+  mobile: string;
+  email?: string;
+  principalMobile: string;
+  message: string;
+  timestamp: string;
+  status: 'delivered' | 'sent' | 'simulated';
+  channel: 'SMS' | 'WhatsApp' | 'System';
+  actionToken: string;
 }
 
 export interface TeacherItem {
@@ -116,12 +142,6 @@ export interface LocationItem {
   isPrimary?: boolean;
 }
 
-export interface AuthSession {
-  role: 'student' | 'teacher' | 'admin';
-  studentId?: string;
-  teacherId?: string;
-}
-
 export interface CollegeDatabase {
   branding: BrandingInfo;
   auth: AdminAuth;
@@ -135,4 +155,5 @@ export interface CollegeDatabase {
   gallery: GalleryItem[];
   inquiries: InquiryItem[];
   locations?: LocationItem[];
+  notificationLogs?: NotificationLogItem[];
 }

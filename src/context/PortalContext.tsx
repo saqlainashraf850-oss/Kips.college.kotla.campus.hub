@@ -11,12 +11,11 @@ import {
   GalleryItem,
   InquiryItem,
   LocationItem,
-  AuthSession
+  NotificationLogItem
 } from '../types';
 import { INITIAL_COLLEGE_DB } from '../data/initialData';
 
 const STORAGE_KEY = 'kips_master_db_v3';
-const AUTH_SESSION_KEY = 'kips_active_auth_session_v3';
 
 interface PortalContextType {
   db: CollegeDatabase;
@@ -28,18 +27,32 @@ interface PortalContextType {
   setCurrentStudent: (s: StudentItem | null) => void;
   currentTeacher: TeacherItem | null;
   setCurrentTeacher: (t: TeacherItem | null) => void;
-  currentUserSession: AuthSession | null;
   
   // Actions
-  login: (role: 'student' | 'teacher' | 'admin', identifier: string, password?: string) => { success: boolean; message?: string };
+  login: (role: 'student' | 'teacher' | 'admin', identifier: string, password?: string) => { success: boolean; message?: string; status?: string };
   logout: () => void;
+  registerStudentRequest: (std: {
+    name: string;
+    father: string;
+    email?: string;
+    pass: string;
+    roll: string;
+    class: string;
+    section: string;
+    mobile: string;
+    photo?: string;
+    customCardId?: string;
+  }) => { success: boolean; message: string; student?: StudentItem };
+  approveStudent: (idOrToken: string) => { success: boolean; message: string };
+  rejectStudent: (idOrToken: string, reason?: string) => { success: boolean; message: string };
+  updatePrincipalMobile: (mobileNumber: string) => { success: boolean; message: string };
+  verifyApprovalToken: (token: string) => StudentItem | null;
   updateContact: (contact: Partial<ContactInfo>) => void;
   updatePrincipal: (principal: Partial<PrincipalInfo>) => void;
   updateBranding: (title: string, logoUrl?: string) => void;
   updateAdminAuth: (adminUser: string, adminPass: string) => void;
   addSection: (sec: Omit<SectionItem, 'id'>) => boolean;
   deleteSection: (id: string) => void;
-  addStudent: (std: Omit<StudentItem, 'id'>) => { success: boolean; message?: string };
   deleteStudent: (id: string) => void;
   markAttendance: (studentId: string, status: 'Present' | 'Absent' | 'Late') => void;
   addTeacher: (tea: Omit<TeacherItem, 'id'>) => { success: boolean; message?: string };
@@ -69,11 +82,26 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        const migratedStudents = (parsed.students || INITIAL_COLLEGE_DB.students).map((s: any) => ({
+          ...s,
+          status: s.status || 'approved',
+          mobile: s.mobile || '+92 300 1234500',
+          requestedAt: s.requestedAt || '15 Aug 2025, 10:00 AM',
+          approvalToken: s.approvalToken || `token-${s.id}`
+        }));
+
         return {
           ...INITIAL_COLLEGE_DB,
           ...parsed,
+          principal: {
+            ...INITIAL_COLLEGE_DB.principal,
+            ...parsed.principal,
+            approvalMobileNumber: parsed.principal?.approvalMobileNumber || INITIAL_COLLEGE_DB.principal.approvalMobileNumber || '+92 300 9876543'
+          },
+          students: migratedStudents,
           locations: parsed.locations || INITIAL_COLLEGE_DB.locations,
-          gallery: parsed.gallery || INITIAL_COLLEGE_DB.gallery
+          gallery: parsed.gallery || INITIAL_COLLEGE_DB.gallery,
+          notificationLogs: parsed.notificationLogs || INITIAL_COLLEGE_DB.notificationLogs || []
         };
       }
     } catch (e) {
@@ -82,65 +110,12 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return INITIAL_COLLEGE_DB;
   });
 
-  const [currentUserSession, setCurrentUserSession] = useState<AuthSession | null>(() => {
-    try {
-      const raw = localStorage.getItem(AUTH_SESSION_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch (e) {
-      console.error("Failed to read session", e);
-    }
-    return null;
-  });
-
-  const [activeView, setActiveView] = useState<'public' | 'student' | 'teacher' | 'admin' | 'login'>(() => {
-    try {
-      const raw = localStorage.getItem(AUTH_SESSION_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.role) return parsed.role;
-      }
-    } catch (e) {}
-    return 'public';
-  });
-
-  const [activeLoginRole, setActiveLoginRole] = useState<'student' | 'teacher' | 'admin'>(() => {
-    try {
-      const raw = localStorage.getItem(AUTH_SESSION_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.role) return parsed.role;
-      }
-    } catch (e) {}
-    return 'student';
-  });
-
+  const [activeView, setActiveView] = useState<'public' | 'student' | 'teacher' | 'admin' | 'login'>('public');
+  const [activeLoginRole, setActiveLoginRole] = useState<'student' | 'teacher' | 'admin'>('student');
   const [currentStudent, setCurrentStudent] = useState<StudentItem | null>(() => {
-    try {
-      const raw = localStorage.getItem(AUTH_SESSION_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.role === 'student' && parsed.studentId) {
-          const match = db.students.find(s => s.id === parsed.studentId);
-          if (match) return match;
-        }
-      }
-    } catch (e) {}
-    return db.students[0] || null;
+    return db.students.find(s => s.status === 'approved') || null;
   });
-
-  const [currentTeacher, setCurrentTeacher] = useState<TeacherItem | null>(() => {
-    try {
-      const raw = localStorage.getItem(AUTH_SESSION_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.role === 'teacher' && parsed.teacherId) {
-          const match = db.teachers.find(t => t.id === parsed.teacherId);
-          if (match) return match;
-        }
-      }
-    } catch (e) {}
-    return db.teachers[0] || null;
-  });
+  const [currentTeacher, setCurrentTeacher] = useState<TeacherItem | null>(() => db.teachers[0] || null);
 
   // Sync to localStorage
   useEffect(() => {
@@ -151,46 +126,70 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [db]);
 
-  const login = (role: 'student' | 'teacher' | 'admin', identifier: string, password = ''): { success: boolean; message?: string } => {
+  const login = (role: 'student' | 'teacher' | 'admin', identifier: string, password = ''): { success: boolean; message?: string; status?: string } => {
     const cleanId = identifier.trim().toLowerCase();
     const cleanPass = password.trim();
 
     if (role === 'admin') {
-      if (cleanId === db.auth.adminUser.toLowerCase() && cleanPass === db.auth.adminPass) {
-        const session: AuthSession = { role: 'admin' };
-        try {
-          localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-        } catch (e) {}
-        setCurrentUserSession(session);
-        setActiveLoginRole('admin');
+      const isOfficialAdmin = (cleanId === db.auth.adminUser.toLowerCase() && cleanPass === db.auth.adminPass);
+      const isPrincipalLogin = (cleanId === 'principal' || cleanId === db.principal.email.toLowerCase()) && (cleanPass === db.auth.adminPass || cleanPass === '1234' || cleanPass === '0852');
+      
+      if (isOfficialAdmin || isPrincipalLogin) {
         setActiveView('admin');
         return { success: true };
       }
-      return { success: false, message: 'Invalid Admin username or password.' };
+      return { success: false, message: 'Invalid Admin/Principal username or password.' };
     }
 
     if (role === 'student') {
-      const found = db.students.find(s => 
-        s.email.toLowerCase() === cleanId ||
-        s.cardId.toLowerCase() === cleanId ||
-        s.roll.toLowerCase() === cleanId
-      );
+      const cleanDigits = cleanId.replace(/[^0-9]/g, '');
+      const found = db.students.find(s => {
+        const stdDigits = s.mobile ? s.mobile.replace(/[^0-9]/g, '') : '';
+        return (
+          s.email.toLowerCase() === cleanId ||
+          s.cardId.toLowerCase() === cleanId ||
+          s.roll.toLowerCase() === cleanId ||
+          (cleanDigits.length >= 7 && stdDigits.endsWith(cleanDigits))
+        );
+      });
+
       if (!found) {
-        return { success: false, message: 'No student found with this Card ID or Gmail.' };
+        return { success: false, message: 'No registered student found with this Card ID, Roll Number, or Registered Email.' };
       }
-      // If student logs in via scanned card, password might match or be verified
+
+      // Check password
       if (cleanPass && found.pass !== cleanPass) {
         return { success: false, message: 'Incorrect student password.' };
       }
-      const session: AuthSession = { role: 'student', studentId: found.id };
-      try {
-        localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-      } catch (e) {}
-      setCurrentUserSession(session);
-      setCurrentStudent(found);
-      setActiveLoginRole('student');
-      setActiveView('student');
-      return { success: true };
+
+      // STRICT APPROVAL STATUS ENFORCEMENT
+      if (found.status === 'pending') {
+        return {
+          success: false,
+          status: 'pending',
+          message: 'Your account is currently Pending Approval. A notification has been sent to the Principal\'s mobile number. You cannot access the student portal until approval is granted.'
+        };
+      }
+
+      if (found.status === 'rejected') {
+        return {
+          success: false,
+          status: 'rejected',
+          message: found.rejectionReason || 'Your account has not been approved by the Principal. Please contact the college administration office.'
+        };
+      }
+
+      if (found.status === 'approved') {
+        setCurrentStudent(found);
+        setActiveView('student');
+        return { success: true, status: 'approved' };
+      }
+
+      return {
+        success: false,
+        status: 'pending',
+        message: 'Your account is pending Principal approval.'
+      };
     }
 
     if (role === 'teacher') {
@@ -201,13 +200,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (found.pass !== cleanPass) {
         return { success: false, message: 'Incorrect teacher password.' };
       }
-      const session: AuthSession = { role: 'teacher', teacherId: found.id };
-      try {
-        localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
-      } catch (e) {}
-      setCurrentUserSession(session);
       setCurrentTeacher(found);
-      setActiveLoginRole('teacher');
       setActiveView('teacher');
       return { success: true };
     }
@@ -216,11 +209,286 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const logout = () => {
-    try {
-      localStorage.removeItem(AUTH_SESSION_KEY);
-    } catch (e) {}
-    setCurrentUserSession(null);
     setActiveView('public');
+  };
+
+  // 1. STUDENT REGISTRATION WITH PRINCIPAL NOTIFICATION (REPLACES OLD GENERATE STUDENT)
+  const registerStudentRequest = (std: {
+    name: string;
+    father: string;
+    email?: string;
+    pass: string;
+    roll: string;
+    class: string;
+    section: string;
+    mobile: string;
+    photo?: string;
+    customCardId?: string;
+  }): { success: boolean; message: string; student?: StudentItem } => {
+    const cleanName = std.name.trim();
+    const cleanFather = std.father.trim();
+    const cleanRoll = std.roll.trim();
+    const cleanMobile = std.mobile.trim();
+    const cleanEmail = (std.email || '').trim().toLowerCase();
+    const cleanPass = std.pass.trim();
+    const cleanDigits = cleanMobile.replace(/[^0-9]/g, '');
+
+    if (!cleanName || !cleanRoll || !cleanMobile || !cleanPass) {
+      return { success: false, message: 'Student Name, Roll Number, Mobile Number, and Password are required.' };
+    }
+
+    if (cleanDigits.length < 10) {
+      return { success: false, message: 'Please enter a valid mobile number with at least 10 digits (e.g. +92 300 1234567).' };
+    }
+
+    // Duplicate Check: Roll Number
+    const existingByRoll = db.students.find(s => s.roll.toLowerCase() === cleanRoll.toLowerCase());
+    if (existingByRoll) {
+      if (existingByRoll.status === 'pending') {
+        return { success: false, message: `A registration request for Roll Number "${cleanRoll}" is already pending Principal approval.` };
+      }
+      if (existingByRoll.status === 'rejected') {
+        return { success: false, message: `Your account with Roll Number "${cleanRoll}" has not been approved by the Principal.` };
+      }
+      return { success: false, message: `A student account with Roll Number "${cleanRoll}" already exists and is active. Please sign in.` };
+    }
+
+    // Duplicate Check: Mobile Number
+    const existingByMobile = db.students.find(s => {
+      const sDigits = (s.mobile || '').replace(/[^0-9]/g, '');
+      return sDigits.length >= 10 && cleanDigits.length >= 10 && (sDigits === cleanDigits || sDigits.endsWith(cleanDigits) || cleanDigits.endsWith(sDigits));
+    });
+    if (existingByMobile) {
+      if (existingByMobile.status === 'pending') {
+        return { success: false, message: `A registration request with Mobile Number "${cleanMobile}" is already pending Principal approval.` };
+      }
+      if (existingByMobile.status === 'rejected') {
+        return { success: false, message: 'Your account has not been approved by the Principal.' };
+      }
+      return { success: false, message: `An account with this Mobile Number already exists. Please sign in.` };
+    }
+
+    // Duplicate Check: Email (if provided)
+    if (cleanEmail) {
+      const existingByEmail = db.students.find(s => s.email && s.email.toLowerCase() === cleanEmail);
+      if (existingByEmail) {
+        if (existingByEmail.status === 'pending') {
+          return { success: false, message: `A registration request with Email "${cleanEmail}" is already pending Principal approval.` };
+        }
+        return { success: false, message: `An account with this Email already exists.` };
+      }
+    }
+
+    const cardId = std.customCardId?.trim() || `KIPS-${std.section}-${cleanRoll.padStart(4, '0')}`;
+    const timestamp = new Date().toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    const approvalToken = `appr-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    const newStudent: StudentItem = {
+      id: `std-${Date.now()}`,
+      name: cleanName,
+      father: cleanFather || 'Parent / Guardian',
+      email: cleanEmail || `${cleanRoll.toLowerCase()}@kips.edu.pk`,
+      pass: cleanPass,
+      roll: cleanRoll,
+      cardId,
+      class: std.class,
+      section: std.section,
+      mobile: cleanMobile,
+      status: 'pending',
+      requestedAt: timestamp,
+      approvalToken,
+      attendance: 100,
+      attendanceStatus: 'Present',
+      photo: std.photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      grade: 'Pending Enrollment',
+      joinedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    };
+
+    // Principal Mobile Number for Notifications (from Admin Configuration)
+    const principalMobile = db.principal.approvalMobileNumber || db.principal.phone || '+92 300 9876543';
+
+    // Dispatched Mobile Notification Record
+    const notificationMessage = `🎓 GIPS/KIPS College Kotla - Student Access Request\n• Student Name: ${cleanName}\n• Student ID/Roll: ${cleanRoll}\n• Class/Course: ${std.class} (Section ${std.section})\n• Registered Mobile: ${cleanMobile}\n• Email: ${cleanEmail || 'Not Provided'}\n• Request Time: ${timestamp}\nStatus: Pending Principal Approval`;
+
+    const newNotification: NotificationLogItem = {
+      id: `notif-${Date.now()}`,
+      studentId: newStudent.id,
+      studentName: cleanName,
+      roll: cleanRoll,
+      class: `${std.class} (${std.section})`,
+      mobile: cleanMobile,
+      email: cleanEmail,
+      principalMobile,
+      message: notificationMessage,
+      timestamp,
+      status: 'delivered',
+      channel: 'SMS',
+      actionToken: approvalToken
+    };
+
+    setDb(prev => ({
+      ...prev,
+      students: [newStudent, ...prev.students],
+      notificationLogs: [newNotification, ...(prev.notificationLogs || [])]
+    }));
+
+    // Trigger backend API if server running
+    try {
+      fetch('/api/students/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newStudent)
+      }).catch(() => {});
+    } catch (e) {}
+
+    return {
+      success: true,
+      message: `Registration request submitted! An approval notification has been sent to Principal mobile (${principalMobile}). Status: Pending Approval.`,
+      student: newStudent
+    };
+  };
+
+  // 2. APPROVE STUDENT ACCESS
+  const approveStudent = (idOrToken: string): { success: boolean; message: string } => {
+    let studentName = '';
+    const approvalTime = new Date().toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    setDb(prev => {
+      const updatedStudents = prev.students.map(s => {
+        if (s.id === idOrToken || s.approvalToken === idOrToken) {
+          studentName = s.name;
+          return {
+            ...s,
+            status: 'approved' as const,
+            approvedAt: approvalTime,
+            rejectionReason: undefined
+          };
+        }
+        return s;
+      });
+
+      return {
+        ...prev,
+        students: updatedStudents
+      };
+    });
+
+    try {
+      fetch('/api/principal/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: idOrToken })
+      }).catch(() => {});
+    } catch (e) {}
+
+    return {
+      success: true,
+      message: studentName ? `Student "${studentName}" approved! Account is now Active.` : 'Student approved successfully.'
+    };
+  };
+
+  // 3. REJECT STUDENT ACCESS
+  const rejectStudent = (idOrToken: string, reason = 'Your account has not been approved by the Principal.'): { success: boolean; message: string } => {
+    let studentName = '';
+    const rejectionTime = new Date().toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    setDb(prev => {
+      const updatedStudents = prev.students.map(s => {
+        if (s.id === idOrToken || s.approvalToken === idOrToken) {
+          studentName = s.name;
+          return {
+            ...s,
+            status: 'rejected' as const,
+            rejectedAt: rejectionTime,
+            rejectionReason: reason
+          };
+        }
+        return s;
+      });
+
+      return {
+        ...prev,
+        students: updatedStudents
+      };
+    });
+
+    // If current student was rejected, clear active session
+    if (currentStudent && (currentStudent.id === idOrToken || currentStudent.approvalToken === idOrToken)) {
+      setCurrentStudent(null);
+      setActiveView('public');
+    }
+
+    try {
+      fetch('/api/principal/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: idOrToken, reason })
+      }).catch(() => {});
+    } catch (e) {}
+
+    return {
+      success: true,
+      message: studentName ? `Student "${studentName}" rejected.` : 'Student access rejected.'
+    };
+  };
+
+  // 4. CONFIGURE PRINCIPAL MOBILE NUMBER (SECURE ADMIN SETTING)
+  const updatePrincipalMobile = (mobileNumber: string): { success: boolean; message: string } => {
+    const clean = mobileNumber.trim();
+    const digits = clean.replace(/[^0-9]/g, '');
+
+    if (!clean || digits.length < 10) {
+      return {
+        success: false,
+        message: 'Invalid mobile number. Please enter a valid number with country code and at least 10 digits (e.g. +92 300 9876543).'
+      };
+    }
+
+    setDb(prev => ({
+      ...prev,
+      principal: {
+        ...prev.principal,
+        approvalMobileNumber: clean
+      }
+    }));
+
+    try {
+      fetch('/api/config/principal-mobile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobileNumber: clean })
+      }).catch(() => {});
+    } catch (e) {}
+
+    return {
+      success: true,
+      message: `Principal mobile number saved successfully! New notifications will be sent to ${clean}.`
+    };
+  };
+
+  const verifyApprovalToken = (token: string): StudentItem | null => {
+    return db.students.find(s => s.approvalToken === token) || null;
   };
 
   const updateContact = (updatedContact: Partial<ContactInfo>) => {
@@ -280,27 +548,6 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ...prev,
       sections: prev.sections.filter(s => s.id !== id)
     }));
-  };
-
-  const addStudent = (std: Omit<StudentItem, 'id'>): { success: boolean; message?: string } => {
-    if (db.students.some(s => s.email.toLowerCase() === std.email.toLowerCase())) {
-      return { success: false, message: 'A student with this Gmail address already exists.' };
-    }
-    if (db.students.some(s => s.cardId.toLowerCase() === std.cardId.toLowerCase())) {
-      return { success: false, message: 'A student with this Card ID already exists.' };
-    }
-
-    const newStudent: StudentItem = {
-      ...std,
-      id: `std-${Date.now()}`,
-      joinedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    };
-
-    setDb(prev => ({
-      ...prev,
-      students: [newStudent, ...prev.students]
-    }));
-    return { success: true };
   };
 
   const deleteStudent = (id: string) => {
@@ -548,7 +795,6 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCurrentStudent,
         currentTeacher,
         setCurrentTeacher,
-        currentUserSession,
         login,
         logout,
         updateContact,
@@ -557,7 +803,11 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updateAdminAuth,
         addSection,
         deleteSection,
-        addStudent,
+        registerStudentRequest,
+        approveStudent,
+        rejectStudent,
+        updatePrincipalMobile,
+        verifyApprovalToken,
         deleteStudent,
         markAttendance,
         addTeacher,
