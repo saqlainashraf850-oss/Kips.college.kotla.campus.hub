@@ -34,6 +34,9 @@ import {
   Bell,
   Bus,
   UserCheck,
+  UserX,
+  Eye,
+  ShieldAlert,
   Star,
   FileText,
   HelpCircle,
@@ -48,7 +51,16 @@ import { AnimatedCounter } from './AnimatedCounter';
 import { TiltCard } from './TiltCard';
 
 export const PublicHome: React.FC = () => {
-  const { db, setActiveView, setActiveLoginRole, addInquiry } = usePortal();
+  const {
+    db,
+    setActiveView,
+    setActiveLoginRole,
+    addInquiry,
+    activityNotifications,
+    todayLoggedStudents,
+    todayNotLoggedStudents,
+    setIsActivityCenterOpen
+  } = usePortal();
 
   // Gallery filter & lightbox
   const [galleryFilter, setGalleryFilter] = useState<string>('All');
@@ -177,49 +189,59 @@ export const PublicHome: React.FC = () => {
     { title: "Student Portal", icon: GraduationCap, action: () => { setActiveLoginRole('student'); setActiveView('login'); }, color: "bg-sky-50 text-sky-700" }
   ];
 
-  // Programs Data
-  const programsList = [
-    {
-      title: "FSc Pre-Medical",
-      duration: "Duration: 2 Years",
-      eligibility: "Eligibility: Matric (Science)",
-      subjects: "Subjects: Biology, Chemistry, Physics, English, Urdu",
-      badge: "Medical Batch",
-      color: "border-sky-400"
-    },
-    {
-      title: "FSc Pre-Engineering",
-      duration: "Duration: 2 Years",
-      eligibility: "Eligibility: Matric (Science)",
-      subjects: "Subjects: Mathematics, Physics, Chemistry, English, Urdu",
-      badge: "Engineering (CB1)",
-      color: "border-cyan-400"
-    },
-    {
-      title: "ICS",
-      duration: "Duration: 2 Years",
-      eligibility: "Eligibility: Matric",
-      subjects: "Subjects: Computer, Mathematics, Physics, English, Urdu",
-      badge: "Computer Science",
-      color: "border-blue-400"
-    },
-    {
-      title: "ICOM",
-      duration: "Duration: 2 Years",
-      eligibility: "Eligibility: Matric",
-      subjects: "Subjects: Commerce, Mathematics, Accounting, English, Urdu",
-      badge: "Commerce Stream",
-      color: "border-indigo-400"
-    }
-  ];
+  // Programs Data (Dynamically managed from Admin Portal)
+  const programsList = (db.courses && db.courses.length > 0)
+    ? db.courses.filter(c => c.isActive).map(c => ({
+        title: c.title,
+        duration: c.duration.startsWith('Duration') ? c.duration : `Duration: ${c.duration}`,
+        eligibility: c.eligibility.startsWith('Eligibility') ? c.eligibility : `Eligibility: ${c.eligibility}`,
+        subjects: c.subjects.startsWith('Subjects') ? c.subjects : `Subjects: ${c.subjects}`,
+        badge: c.badge || 'Academic Batch',
+        color: c.color || 'border-sky-400'
+      }))
+    : [
+        {
+          title: "FSc Pre-Medical",
+          duration: "Duration: 2 Years",
+          eligibility: "Eligibility: Matric (Science)",
+          subjects: "Subjects: Biology, Chemistry, Physics, English, Urdu",
+          badge: "Medical Batch",
+          color: "border-sky-400"
+        },
+        {
+          title: "FSc Pre-Engineering",
+          duration: "Duration: 2 Years",
+          eligibility: "Eligibility: Matric (Science)",
+          subjects: "Subjects: Mathematics, Physics, Chemistry, English, Urdu",
+          badge: "Engineering (CB1)",
+          color: "border-cyan-400"
+        },
+        {
+          title: "ICS",
+          duration: "Duration: 2 Years",
+          eligibility: "Eligibility: Matric",
+          subjects: "Subjects: Computer, Mathematics, Physics, English, Urdu",
+          badge: "Computer Science",
+          color: "border-blue-400"
+        },
+        {
+          title: "ICOM",
+          duration: "Duration: 2 Years",
+          eligibility: "Eligibility: Matric",
+          subjects: "Subjects: Commerce, Mathematics, Accounting, English, Urdu",
+          badge: "Commerce Stream",
+          color: "border-indigo-400"
+        }
+      ];
 
-  // Filtered Faculty
+  // Filtered Faculty (Supports all academic disciplines)
   const filteredFaculty = db.teachers.filter(teacher => {
+    const subj = teacher.subject.toLowerCase();
     const matchesFilter = facultyFilter === 'All' ||
-      (facultyFilter === 'Science' && (teacher.subject.toLowerCase().includes('math') || teacher.subject.toLowerCase().includes('physic') || teacher.subject.toLowerCase().includes('chem') || teacher.subject.toLowerCase().includes('bio'))) ||
-      (facultyFilter === 'Computer' && teacher.subject.toLowerCase().includes('comput')) ||
-      (facultyFilter === 'Commerce' && (teacher.subject.toLowerCase().includes('comm') || teacher.subject.toLowerCase().includes('stat'))) ||
-      (facultyFilter === 'Languages' && (teacher.subject.toLowerCase().includes('eng') || teacher.subject.toLowerCase().includes('urdu')));
+      (facultyFilter === 'Science' && (subj.includes('math') || subj.includes('physic') || subj.includes('chem') || subj.includes('bio') || subj.includes('science'))) ||
+      (facultyFilter === 'Computer' && (subj.includes('comput') || subj.includes('it') || subj.includes('program') || subj.includes('ics') || subj.includes('software'))) ||
+      (facultyFilter === 'Commerce' && (subj.includes('comm') || subj.includes('stat') || subj.includes('account') || subj.includes('eco') || subj.includes('bank'))) ||
+      (facultyFilter === 'Languages' && (subj.includes('eng') || subj.includes('urdu') || subj.includes('islam') || subj.includes('pak')));
 
     const matchesSearch = !facultySearch.trim() ||
       teacher.name.toLowerCase().includes(facultySearch.toLowerCase()) ||

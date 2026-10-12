@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePortal } from '../context/PortalContext';
 import {
   GraduationCap,
-  ScanBarcode,
-  Camera,
   X,
   Lock,
   Mail,
@@ -19,9 +17,10 @@ import {
   Loader2,
   KeyRound,
   FileText,
-  Smartphone
+  Smartphone,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
 
 export const LoginView: React.FC = () => {
   const {
@@ -38,9 +37,6 @@ export const LoginView: React.FC = () => {
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [loginStatusType, setLoginStatusType] = useState<'pending' | 'rejected' | 'error' | null>(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState('');
-  const qrScannerRef = useRef<Html5Qrcode | null>(null);
 
   // Student portal sub-mode: 'signin' or 'register'
   const [studentMode, setStudentMode] = useState<'signin' | 'register'>('signin');
@@ -55,6 +51,7 @@ export const LoginView: React.FC = () => {
   const [regEmail, setRegEmail] = useState('');
   const [regPass, setRegPass] = useState('');
   const [regPassConfirm, setRegPassConfirm] = useState('');
+  const [regPhoto, setRegPhoto] = useState<string>('');
 
   // Registration UI state
   const [isSubmittingReg, setIsSubmittingReg] = useState(false);
@@ -64,6 +61,7 @@ export const LoginView: React.FC = () => {
     class: string;
     mobile: string;
     email?: string;
+    photo?: string;
     timestamp: string;
     principalMobile: string;
   } | null>(null);
@@ -74,83 +72,56 @@ export const LoginView: React.FC = () => {
     setPassword('');
     setErrorMessage('');
     setLoginStatusType(null);
-    stopCamera();
     if (activeLoginRole !== 'student') {
       setStudentMode('signin');
     }
   }, [activeLoginRole]);
 
-  // Clean up scanner on unmount
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, []);
-
-  const startCamera = async () => {
-    setCameraError('');
-    setIsCameraActive(true);
-
-    try {
-      setTimeout(async () => {
-        try {
-          if (!qrScannerRef.current) {
-            qrScannerRef.current = new Html5Qrcode('qr-reader-container');
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        setRegError('تصویر کا سائز 10MB سے کم ہونا چاہیے۔ (Image file must be under 10MB)');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          // Compress via canvas to max 400x400 JPEG 0.75 for fast storage
+          const canvas = document.createElement('canvas');
+          const maxDim = 400;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
           }
-          await qrScannerRef.current.start(
-            { facingMode: 'environment' },
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decodedText) => {
-              handleScannedCard(decodedText);
-              stopCamera();
-            },
-            () => {}
-          );
-        } catch (err: any) {
-          console.error("Camera start error", err);
-          setCameraError("Camera permission was denied or camera is not available. Please enter the Card ID or Gmail manually.");
-          setIsCameraActive(false);
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.75);
+            setRegPhoto(compressed);
+            setRegError('');
+          } else if (typeof event.target?.result === 'string') {
+            setRegPhoto(event.target.result);
+            setRegError('');
+          }
+        };
+        if (typeof event.target?.result === 'string') {
+          img.src = event.target.result;
         }
-      }, 300);
-    } catch (e: any) {
-      setCameraError(e.message || "Failed to initialize camera.");
-      setIsCameraActive(false);
-    }
-  };
-
-  const stopCamera = async () => {
-    if (qrScannerRef.current && qrScannerRef.current.isScanning) {
-      try {
-        await qrScannerRef.current.stop();
-        qrScannerRef.current.clear();
-      } catch (err) {
-        console.error("Failed to stop scanner", err);
-      }
-    }
-    setIsCameraActive(false);
-  };
-
-  const handleScannedCard = (code: string) => {
-    const clean = code.trim();
-    setIdentifier(clean);
-    setActiveLoginRole('student');
-    setStudentMode('signin');
-
-    const matched = db.students.find(
-      s => s.cardId.toLowerCase() === clean.toLowerCase() ||
-           s.roll.toLowerCase() === clean.toLowerCase() ||
-           s.email.toLowerCase() === clean.toLowerCase()
-    );
-
-    if (matched) {
-      setPassword(matched.pass);
-      setErrorMessage('');
-      setLoginStatusType(null);
-      const res = login('student', clean, matched.pass);
-      if (!res.success) {
-        setErrorMessage(res.message || 'Login failed.');
-        setLoginStatusType((res.status as 'pending' | 'rejected') || 'error');
-      }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -209,7 +180,8 @@ export const LoginView: React.FC = () => {
         section: regSection,
         mobile: regMobile,
         email: regEmail || undefined,
-        pass: regPass
+        pass: regPass,
+        photo: regPhoto || undefined
       });
 
       setIsSubmittingReg(false);
@@ -224,6 +196,7 @@ export const LoginView: React.FC = () => {
           class: `${regClass} (${regSection})`,
           mobile: regMobile.trim(),
           email: regEmail.trim() || undefined,
+          photo: regPhoto || undefined,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           principalMobile
         });
@@ -504,6 +477,60 @@ export const LoginView: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Student Photo Upload Section */}
+                  <div className="p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block font-bold text-slate-800 text-xs">
+                        طالب علم کی تصویر (Upload Student Profile Photo)
+                      </label>
+                      <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
+                        {regPhoto ? 'تصویر منتخب ہو گئی ✓' : 'اختیاری / تجویز کردہ'}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-emerald-400 bg-white shadow-sm flex items-center justify-center flex-shrink-0">
+                        {regPhoto ? (
+                          <img src={regPhoto} alt="Student Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-slate-400 p-1 text-center">
+                            <ImageIcon className="w-6 h-6 text-emerald-500 mb-0.5" />
+                            <span className="text-[9px] font-semibold">پاسپورٹ فوٹو</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 space-y-1.5 w-full">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="cursor-pointer px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center space-x-1.5 shadow-sm transition">
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>تصویر اپلوڈ کریں (Browse Image)</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handlePhotoUpload}
+                              className="hidden"
+                            />
+                          </label>
+
+                          {regPhoto && (
+                            <button
+                              type="button"
+                              onClick={() => setRegPhoto('')}
+                              className="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition flex items-center space-x-1 border border-rose-200"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span>Remove</span>
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight">
+                          طالب علم کی واضح تصویر منتخب کریں (Max 5MB). یہ تصویر پرنسپل کی منظوری، اسٹوڈنٹ آئی ڈی کارڈ اور پروفائل میں لگے گی۔
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block font-bold text-slate-700 mb-1">
@@ -561,13 +588,27 @@ export const LoginView: React.FC = () => {
                         onChange={e => setRegClass(e.target.value)}
                         className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 bg-white font-medium"
                       >
-                        <option value="1st Year (F.Sc Pre-Medical)">1st Year (F.Sc Pre-Medical)</option>
-                        <option value="1st Year (F.Sc Pre-Engineering)">1st Year (F.Sc Pre-Engineering)</option>
-                        <option value="1st Year (ICS Maths/CS)">1st Year (ICS Maths/CS)</option>
-                        <option value="1st Year (ICS Maths/Stats)">1st Year (ICS Maths/Stats)</option>
-                        <option value="2nd Year (F.Sc Pre-Medical)">2nd Year (F.Sc Pre-Medical)</option>
-                        <option value="2nd Year (F.Sc Pre-Engineering)">2nd Year (F.Sc Pre-Engineering)</option>
-                        <option value="2nd Year (ICS Maths/CS)">2nd Year (ICS Maths/CS)</option>
+                        {db.courses && db.courses.length > 0 ? (
+                          db.courses
+                            .filter(c => c.isActive)
+                            .map(c => (
+                              <React.Fragment key={c.id}>
+                                <option value={`1st Year (${c.title})`}>1st Year ({c.title})</option>
+                                <option value={`2nd Year (${c.title})`}>2nd Year ({c.title})</option>
+                              </React.Fragment>
+                            ))
+                        ) : (
+                          <>
+                            <option value="1st Year (F.Sc Pre-Medical)">1st Year (F.Sc Pre-Medical)</option>
+                            <option value="1st Year (F.Sc Pre-Engineering)">1st Year (F.Sc Pre-Engineering)</option>
+                            <option value="1st Year (ICS Maths/CS)">1st Year (ICS Maths/CS)</option>
+                            <option value="1st Year (ICS Maths/Stats)">1st Year (ICS Maths/Stats)</option>
+                            <option value="1st Year (ICOM Commerce)">1st Year (ICOM Commerce)</option>
+                            <option value="2nd Year (F.Sc Pre-Medical)">2nd Year (F.Sc Pre-Medical)</option>
+                            <option value="2nd Year (F.Sc Pre-Engineering)">2nd Year (F.Sc Pre-Engineering)</option>
+                            <option value="2nd Year (ICS Maths/CS)">2nd Year (ICS Maths/CS)</option>
+                          </>
+                        )}
                       </select>
                     </div>
                   </div>
@@ -693,38 +734,12 @@ export const LoginView: React.FC = () => {
             /* VIEW: STANDARD SIGN IN FORM (WITH STATUS ENFORCEMENT)           */
             /* ============================================================== */
             <div>
-              {/* Camera Scanner View */}
-              {isCameraActive && (
-                <div className="mb-5 rounded-2xl overflow-hidden bg-black border-2 border-sky-500 relative p-2">
-                  <div className="flex items-center justify-between text-white text-xs px-2 py-1 mb-1">
-                    <span className="font-bold flex items-center space-x-1">
-                      <Camera className="w-4 h-4 text-sky-400" />
-                      <span>Align Student Card Barcode / QR</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={stopCamera}
-                      className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div id="qr-reader-container" className="w-full h-56 rounded-xl overflow-hidden"></div>
-                </div>
-              )}
-
-              {cameraError && (
-                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium">
-                  {cameraError}
-                </div>
-              )}
-
               {/* Form */}
               <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs font-medium">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1.5">
                     {activeLoginRole === 'student'
-                      ? 'Student Roll Number, Card ID, or Gmail'
+                      ? 'طالب علم رول نمبر / سٹوڈنٹ کارڈ آئی ڈی / جی میل (Roll Number, Card ID, or Gmail)'
                       : activeLoginRole === 'teacher'
                       ? 'Teacher Registered Gmail'
                       : 'Admin Username'}
@@ -747,19 +762,8 @@ export const LoginView: React.FC = () => {
                           ? 'e.g. hamza@gmail.com'
                           : 'Enter admin username (e.g. Kips.edu)'
                       }
-                      className="w-full pl-3.5 pr-12 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white font-medium"
+                      className="w-full pl-3.5 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 bg-white font-medium"
                     />
-
-                    {activeLoginRole === 'student' && (
-                      <button
-                        type="button"
-                        onClick={isCameraActive ? stopCamera : startCamera}
-                        title="Scan Student Card via Camera"
-                        className="absolute right-2.5 top-2.5 p-1.5 text-sky-600 bg-sky-50 rounded-lg hover:bg-sky-100 transition"
-                      >
-                        <ScanBarcode className="w-5 h-5" />
-                      </button>
-                    )}
                   </div>
                 </div>
 

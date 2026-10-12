@@ -62,6 +62,25 @@ export interface StudentItem {
   photo: string;
   grade?: string;
   joinedDate?: string;
+  lastLoginDate?: string; // YYYY-MM-DD
+  lastLoginTime?: string; // HH:MM AM/PM
+  viewedMaterialIds?: string[];
+}
+
+export interface DepartmentActivityNotification {
+  id: string;
+  type: 'login' | 'no_login' | 'viewed_material' | 'unviewed_material' | 'sensitive_action';
+  title: string;
+  description: string;
+  timestamp: string;
+  date: string; // YYYY-MM-DD
+  studentId?: string;
+  studentName?: string;
+  studentRoll?: string;
+  materialId?: string;
+  materialTitle?: string;
+  isSensitive?: boolean;
+  severity?: 'info' | 'warning' | 'alert' | 'success';
 }
 
 export interface NotificationLogItem {
@@ -142,6 +161,19 @@ export interface LocationItem {
   isPrimary?: boolean;
 }
 
+export interface CourseProgramItem {
+  id: string;
+  title: string;
+  category: 'F.Sc' | 'ICS' | 'Commerce' | 'General' | 'Entry Test';
+  duration: string;
+  eligibility: string;
+  subjects: string;
+  badge: string;
+  color?: string;
+  description?: string;
+  isActive: boolean;
+}
+
 export interface CollegeDatabase {
   branding: BrandingInfo;
   auth: AdminAuth;
@@ -150,10 +182,12 @@ export interface CollegeDatabase {
   sections: SectionItem[];
   students: StudentItem[];
   teachers: TeacherItem[];
+  courses?: CourseProgramItem[];
   materials: MaterialItem[];
   announcements: AnnouncementItem[];
   gallery: GalleryItem[];
   inquiries: InquiryItem[];
   locations?: LocationItem[];
   notificationLogs?: NotificationLogItem[];
+  activityNotifications?: DepartmentActivityNotification[];
 }

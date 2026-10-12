@@ -11,7 +11,9 @@ import {
   GalleryItem,
   InquiryItem,
   LocationItem,
-  NotificationLogItem
+  NotificationLogItem,
+  DepartmentActivityNotification,
+  CourseProgramItem
 } from '../types';
 import { INITIAL_COLLEGE_DB } from '../data/initialData';
 
@@ -28,6 +30,18 @@ interface PortalContextType {
   currentTeacher: TeacherItem | null;
   setCurrentTeacher: (t: TeacherItem | null) => void;
   
+  // Tracking & Notifications
+  activityNotifications: DepartmentActivityNotification[];
+  isActivityCenterOpen: boolean;
+  setIsActivityCenterOpen: (open: boolean) => void;
+  recordStudentLogin: (studentId: string) => void;
+  recordMaterialView: (studentId: string, materialId: string) => void;
+  recordSensitiveAction: (title: string, description: string, severity?: 'alert' | 'warning' | 'info' | 'success') => void;
+  dismissActivityNotification: (id: string) => void;
+  clearActivityNotifications: () => void;
+  todayLoggedStudents: StudentItem[];
+  todayNotLoggedStudents: StudentItem[];
+
   // Actions
   login: (role: 'student' | 'teacher' | 'admin', identifier: string, password?: string) => { success: boolean; message?: string; status?: string };
   logout: () => void;
@@ -56,7 +70,12 @@ interface PortalContextType {
   deleteStudent: (id: string) => void;
   markAttendance: (studentId: string, status: 'Present' | 'Absent' | 'Late') => void;
   addTeacher: (tea: Omit<TeacherItem, 'id'>) => { success: boolean; message?: string };
+  updateTeacher: (id: string, tea: Partial<TeacherItem>) => { success: boolean; message?: string };
   deleteTeacher: (id: string) => void;
+  addCourse: (course: Omit<CourseProgramItem, 'id'>) => { success: boolean; message?: string };
+  updateCourse: (id: string, course: Partial<CourseProgramItem>) => void;
+  deleteCourse: (id: string) => void;
+  toggleCourseStatus: (id: string) => void;
   addMaterial: (mat: Omit<MaterialItem, 'id' | 'date'>) => void;
   deleteMaterial: (id: string) => void;
   addAnnouncement: (ann: Omit<AnnouncementItem, 'id' | 'date'>) => void;
@@ -90,6 +109,19 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           approvalToken: s.approvalToken || `token-${s.id}`
         }));
 
+        // Safeguard teachers so they are never truncated and any added teachers stay intact
+        const parsedTeachers: TeacherItem[] = Array.isArray(parsed.teachers) ? parsed.teachers : [];
+        const mergedTeachers = [...parsedTeachers];
+        for (const defaultTea of INITIAL_COLLEGE_DB.teachers) {
+          if (!mergedTeachers.some((t: any) => t.id === defaultTea.id || t.email.toLowerCase() === defaultTea.email.toLowerCase())) {
+            mergedTeachers.push(defaultTea);
+          }
+        }
+
+        const migratedCourses = (parsed.courses && parsed.courses.length > 0)
+          ? parsed.courses
+          : (INITIAL_COLLEGE_DB.courses || []);
+
         return {
           ...INITIAL_COLLEGE_DB,
           ...parsed,
@@ -99,6 +131,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             approvalMobileNumber: parsed.principal?.approvalMobileNumber || INITIAL_COLLEGE_DB.principal.approvalMobileNumber || '+92 300 9876543'
           },
           students: migratedStudents,
+          teachers: mergedTeachers,
+          courses: migratedCourses,
           locations: parsed.locations || INITIAL_COLLEGE_DB.locations,
           gallery: parsed.gallery || INITIAL_COLLEGE_DB.gallery,
           notificationLogs: parsed.notificationLogs || INITIAL_COLLEGE_DB.notificationLogs || []
@@ -112,19 +146,177 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [activeView, setActiveView] = useState<'public' | 'student' | 'teacher' | 'admin' | 'login'>('public');
   const [activeLoginRole, setActiveLoginRole] = useState<'student' | 'teacher' | 'admin'>('student');
+  const [isActivityCenterOpen, setIsActivityCenterOpen] = useState(false);
   const [currentStudent, setCurrentStudent] = useState<StudentItem | null>(() => {
     return db.students.find(s => s.status === 'approved') || null;
   });
   const [currentTeacher, setCurrentTeacher] = useState<TeacherItem | null>(() => db.teachers[0] || null);
 
-  // Sync to localStorage
+  // Sync to localStorage with quota protection so large images never cause silent drop of teachers/data
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     } catch (e) {
-      console.error("Failed to save to local storage", e);
+      console.error("Failed to save to local storage, attempting optimized save", e);
+      try {
+        // Strip out excessive data URLs if quota exceeded to protect essential records
+        const safeDb = {
+          ...db,
+          gallery: (db.gallery || []).map(g => ({
+            ...g,
+            url: g.url && g.url.length > 100000 ? 'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=800&q=80' : g.url
+          })),
+          teachers: (db.teachers || []).map(t => ({
+            ...t,
+            photo: t.photo && t.photo.length > 100000 ? 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80' : t.photo
+          }))
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(safeDb));
+      } catch (err2) {
+        console.error("Critical storage error", err2);
+      }
     }
   }, [db]);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const activityNotifications = db.activityNotifications || [];
+  const todayLoggedStudents = db.students.filter(s => s.status === 'approved' && s.lastLoginDate === todayStr);
+  const todayNotLoggedStudents = db.students.filter(s => s.status === 'approved' && s.lastLoginDate !== todayStr);
+
+  const recordStudentLogin = (studentId: string) => {
+    const todayDate = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    let studentObj: StudentItem | undefined;
+
+    setDb(prev => {
+      const updatedStudents = prev.students.map(s => {
+        if (s.id === studentId || s.roll === studentId) {
+          studentObj = s;
+          return {
+            ...s,
+            lastLoginDate: todayDate,
+            lastLoginTime: timeStr
+          };
+        }
+        return s;
+      });
+
+      const newNotif: DepartmentActivityNotification = {
+        id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        type: 'login',
+        title: 'طالب علم لاگ ان (Student Logged In Today)',
+        description: `${studentObj?.name || 'طالب علم'} (Roll: ${studentObj?.roll || studentId}, Class: ${studentObj?.class || 'F.Sc'}) نے آج ${timeStr} پر لاگ ان کیا۔`,
+        timestamp: `${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${timeStr}`,
+        date: todayDate,
+        studentId: studentObj?.id || studentId,
+        studentName: studentObj?.name,
+        studentRoll: studentObj?.roll,
+        isSensitive: false,
+        severity: 'success'
+      };
+
+      return {
+        ...prev,
+        students: updatedStudents,
+        activityNotifications: [newNotif, ...(prev.activityNotifications || [])]
+      };
+    });
+
+    setCurrentStudent(curr => {
+      if (curr && (curr.id === studentId || curr.roll === studentId)) {
+        return { ...curr, lastLoginDate: todayDate, lastLoginTime: timeStr };
+      }
+      return curr;
+    });
+  };
+
+  const recordMaterialView = (studentId: string, materialId: string) => {
+    const todayDate = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    let studentObj: StudentItem | undefined;
+    let materialObj: MaterialItem | undefined;
+
+    setDb(prev => {
+      materialObj = prev.materials.find(m => m.id === materialId);
+      const updatedStudents = prev.students.map(s => {
+        if (s.id === studentId || s.roll === studentId) {
+          studentObj = s;
+          const alreadyViewed = (s.viewedMaterialIds || []).includes(materialId);
+          const updatedViewed = alreadyViewed ? (s.viewedMaterialIds || []) : [...(s.viewedMaterialIds || []), materialId];
+          return {
+            ...s,
+            viewedMaterialIds: updatedViewed
+          };
+        }
+        return s;
+      });
+
+      const newNotif: DepartmentActivityNotification = {
+        id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        type: 'viewed_material',
+        title: 'سٹڈی میٹریل دیکھا گیا (Material Viewed)',
+        description: `${studentObj?.name || 'طالب علم'} (Roll: ${studentObj?.roll}) نے '${materialObj?.title || 'Study Material'}' دیکھی۔`,
+        timestamp: `${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${timeStr}`,
+        date: todayDate,
+        studentId: studentObj?.id || studentId,
+        studentName: studentObj?.name,
+        studentRoll: studentObj?.roll,
+        materialId,
+        materialTitle: materialObj?.title,
+        isSensitive: false,
+        severity: 'info'
+      };
+
+      return {
+        ...prev,
+        students: updatedStudents,
+        activityNotifications: [newNotif, ...(prev.activityNotifications || [])]
+      };
+    });
+
+    setCurrentStudent(curr => {
+      if (curr && (curr.id === studentId || curr.roll === studentId)) {
+        const alreadyViewed = (curr.viewedMaterialIds || []).includes(materialId);
+        const updatedViewed = alreadyViewed ? (curr.viewedMaterialIds || []) : [...(curr.viewedMaterialIds || []), materialId];
+        return { ...curr, viewedMaterialIds: updatedViewed };
+      }
+      return curr;
+    });
+  };
+
+  const recordSensitiveAction = (title: string, description: string, severity: 'alert' | 'warning' | 'info' | 'success' = 'alert') => {
+    const todayDate = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const newNotif: DepartmentActivityNotification = {
+      id: `act-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      type: 'sensitive_action',
+      title,
+      description,
+      timestamp: `${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${timeStr}`,
+      date: todayDate,
+      isSensitive: true,
+      severity
+    };
+
+    setDb(prev => ({
+      ...prev,
+      activityNotifications: [newNotif, ...(prev.activityNotifications || [])]
+    }));
+  };
+
+  const dismissActivityNotification = (id: string) => {
+    setDb(prev => ({
+      ...prev,
+      activityNotifications: (prev.activityNotifications || []).filter(n => n.id !== id)
+    }));
+  };
+
+  const clearActivityNotifications = () => {
+    setDb(prev => ({
+      ...prev,
+      activityNotifications: []
+    }));
+  };
 
   const login = (role: 'student' | 'teacher' | 'admin', identifier: string, password = ''): { success: boolean; message?: string; status?: string } => {
     const cleanId = identifier.trim().toLowerCase();
@@ -180,6 +372,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       if (found.status === 'approved') {
+        recordStudentLogin(found.id);
         setCurrentStudent(found);
         setActiveView('student');
         return { success: true, status: 'approved' };
@@ -339,6 +532,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       notificationLogs: [newNotification, ...(prev.notificationLogs || [])]
     }));
 
+    recordSensitiveAction('نئی رجسٹریشن درخواست (Student Registration)', `طالب علم "${cleanName}" (Roll: ${cleanRoll}, ${std.class}) نے رجسٹریشن فارم جمع کرایا${std.photo ? ' بمع ذاتی تصویر' : ''}۔ پرنسپل کی منظوری درکار ہے۔`, 'info');
+
     // Trigger backend API if server running
     try {
       fetch('/api/students/register', {
@@ -395,6 +590,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }).catch(() => {});
     } catch (e) {}
 
+    recordSensitiveAction('طالب علم کی منظوری (Student Approved)', `پرنسپل نے طالب علم "${studentName || idOrToken}" کی رجسٹریشن منظور کر کے اکاؤنٹ ایکٹیو کیا۔`, 'success');
+
     return {
       success: true,
       message: studentName ? `Student "${studentName}" approved! Account is now Active.` : 'Student approved successfully.'
@@ -447,6 +644,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }).catch(() => {});
     } catch (e) {}
 
+    recordSensitiveAction('رجسٹریشن مسترد (Student Rejected)', `پرنسپل نے طالب علم "${studentName || idOrToken}" کی درخواست مسترد کی۔ وجہ: "${reason}"`, 'alert');
+
     return {
       success: true,
       message: studentName ? `Student "${studentName}" rejected.` : 'Student access rejected.'
@@ -473,6 +672,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }));
 
+    recordSensitiveAction('پرنسپل موبائل نمبر تبدیل (Principal Mobile Updated)', `ایمرجنسی نوٹیفکیشن الرٹ موبائل تبدیل کر کے "${clean}" کیا گیا۔`, 'alert');
+
     try {
       fetch('/api/config/principal-mobile', {
         method: 'POST',
@@ -492,6 +693,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateContact = (updatedContact: Partial<ContactInfo>) => {
+    recordSensitiveAction('رابطہ معلومات اپ ڈیٹ (Contact Updated)', 'کالج کے پتے، فون، ای میل، یا دفتری اوقات میں تبدیلی کی گئی۔', 'warning');
     setDb(prev => ({
       ...prev,
       contact: {
@@ -502,6 +704,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updatePrincipal = (updatedPrincipal: Partial<PrincipalInfo>) => {
+    recordSensitiveAction('پرنسپل پروفائل اپ ڈیٹ (Principal Profile Updated)', 'پرنسپل کے پروفائل، ڈگریز یا دفتری رابطے میں ترمیم کی گئی۔', 'warning');
     setDb(prev => ({
       ...prev,
       principal: {
@@ -522,6 +725,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateAdminAuth = (adminUser: string, adminPass: string) => {
+    recordSensitiveAction('ایڈمن لاگ ان تبدیل (Admin Credentials Updated)', 'ایڈمن کنٹرول پینل کے لاگ ان کریڈینشلز اپ ڈیٹ کیے گئے۔', 'alert');
     setDb(prev => ({
       ...prev,
       auth: { adminUser, adminPass }
@@ -536,6 +740,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ...sec,
       id: `sec-${Date.now()}`
     };
+    recordSensitiveAction('نیا سیکشن شامل (Section Added)', `سیکشن ${sec.name} شامل کیا گیا۔`, 'info');
     setDb(prev => ({
       ...prev,
       sections: [...prev.sections, newSec]
@@ -544,6 +749,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteSection = (id: string) => {
+    recordSensitiveAction('سیکشن حذف (Section Deleted)', `سیکشن کا ریکارڈ حذف کر دیا گیا۔`, 'warning');
     setDb(prev => ({
       ...prev,
       sections: prev.sections.filter(s => s.id !== id)
@@ -551,6 +757,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteStudent = (id: string) => {
+    recordSensitiveAction('طالب علم ریکارڈ حذف (Student Deleted)', `طالب علم کا پروفائل ریکارڈ حذف کر دیا گیا۔`, 'alert');
     setDb(prev => ({
       ...prev,
       students: prev.students.filter(s => s.id !== id)
@@ -578,27 +785,60 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const addTeacher = (tea: Omit<TeacherItem, 'id'>): { success: boolean; message?: string } => {
-    if (db.teachers.some(t => t.email.toLowerCase() === tea.email.toLowerCase())) {
+    const cleanEmail = tea.email.trim().toLowerCase();
+    const existing = db.teachers.some(t => t.email.trim().toLowerCase() === cleanEmail);
+    if (existing) {
       return { success: false, message: 'A teacher with this Gmail already exists.' };
     }
     const newTeacher: TeacherItem = {
       ...tea,
+      email: cleanEmail,
       id: `t-${Date.now()}`
     };
 
-    // If teacher is assigned as incharge of a section, update section incharge
-    let updatedSections = db.sections;
-    if (tea.inchargeSection && tea.inchargeSection !== 'None') {
-      updatedSections = db.sections.map(sec => 
-        sec.name === tea.inchargeSection ? { ...sec, incharge: `${tea.name} (${tea.subject})` } : sec
-      );
-    }
+    setDb(prev => {
+      let updatedSections = prev.sections;
+      if (tea.inchargeSection && tea.inchargeSection !== 'None') {
+        updatedSections = prev.sections.map(sec => 
+          sec.name === tea.inchargeSection ? { ...sec, incharge: `${tea.name} (${tea.subject})` } : sec
+        );
+      }
+      return {
+        ...prev,
+        sections: updatedSections,
+        teachers: [newTeacher, ...prev.teachers]
+      };
+    });
+    recordSensitiveAction('نیا استاد شامل (Teacher Added)', `استاد ${tea.name} (${tea.subject}) فیکلٹی میں شامل کیا گیا۔`, 'info');
+    return { success: true };
+  };
 
-    setDb(prev => ({
-      ...prev,
-      sections: updatedSections,
-      teachers: [newTeacher, ...prev.teachers]
-    }));
+  const updateTeacher = (id: string, updated: Partial<TeacherItem>): { success: boolean; message?: string } => {
+    setDb(prev => {
+      const updatedTeachers = prev.teachers.map(t => {
+        if (t.id === id) {
+          return { ...t, ...updated };
+        }
+        return t;
+      });
+
+      let updatedSections = prev.sections;
+      if (updated.inchargeSection && updated.inchargeSection !== 'None') {
+        const found = updatedTeachers.find(t => t.id === id);
+        if (found) {
+          updatedSections = prev.sections.map(sec => 
+            sec.name === updated.inchargeSection ? { ...sec, incharge: `${found.name} (${found.subject})` } : sec
+          );
+        }
+      }
+
+      return {
+        ...prev,
+        sections: updatedSections,
+        teachers: updatedTeachers
+      };
+    });
+    recordSensitiveAction('استاد کا ریکارڈ اپ ڈیٹ (Teacher Updated)', `استاد کی تفصیلات و معلومات اپ ڈیٹ کی گئیں۔`, 'info');
     return { success: true };
   };
 
@@ -606,6 +846,47 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setDb(prev => ({
       ...prev,
       teachers: prev.teachers.filter(t => t.id !== id)
+    }));
+    recordSensitiveAction('استاد کا ریکارڈ حذف (Teacher Removed)', `استاد فیکلٹی لسٹ سے ریموو کر دیا گیا۔`, 'warning');
+  };
+
+  const addCourse = (course: Omit<CourseProgramItem, 'id'>): { success: boolean; message?: string } => {
+    const cleanTitle = course.title.trim();
+    if (!cleanTitle) {
+      return { success: false, message: 'Course title is required.' };
+    }
+    const newCourse: CourseProgramItem = {
+      ...course,
+      id: `course-${Date.now()}`
+    };
+    setDb(prev => ({
+      ...prev,
+      courses: [newCourse, ...(prev.courses || [])]
+    }));
+    recordSensitiveAction('نیا کورس شامل (Course Added)', `تعلیمی پروگرام '${cleanTitle}' کامیابی سے شامل کیا گیا۔`, 'info');
+    return { success: true };
+  };
+
+  const updateCourse = (id: string, updated: Partial<CourseProgramItem>) => {
+    setDb(prev => ({
+      ...prev,
+      courses: (prev.courses || []).map(c => c.id === id ? { ...c, ...updated } : c)
+    }));
+    recordSensitiveAction('کورس معلومات اپ ڈیٹ (Course Updated)', `کورس کے قواعد و مضامین اپ ڈیٹ کیے گئے۔`, 'info');
+  };
+
+  const deleteCourse = (id: string) => {
+    setDb(prev => ({
+      ...prev,
+      courses: (prev.courses || []).filter(c => c.id !== id)
+    }));
+    recordSensitiveAction('کورس حذف (Course Deleted)', `کورس پورٹل سے خارج کر دیا گیا۔`, 'warning');
+  };
+
+  const toggleCourseStatus = (id: string) => {
+    setDb(prev => ({
+      ...prev,
+      courses: (prev.courses || []).map(c => c.id === id ? { ...c, isActive: !c.isActive } : c)
     }));
   };
 
@@ -795,6 +1076,16 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCurrentStudent,
         currentTeacher,
         setCurrentTeacher,
+        activityNotifications,
+        isActivityCenterOpen,
+        setIsActivityCenterOpen,
+        recordStudentLogin,
+        recordMaterialView,
+        recordSensitiveAction,
+        dismissActivityNotification,
+        clearActivityNotifications,
+        todayLoggedStudents,
+        todayNotLoggedStudents,
         login,
         logout,
         updateContact,
@@ -811,7 +1102,12 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deleteStudent,
         markAttendance,
         addTeacher,
+        updateTeacher,
         deleteTeacher,
+        addCourse,
+        updateCourse,
+        deleteCourse,
+        toggleCourseStatus,
         addMaterial,
         deleteMaterial,
         addAnnouncement,

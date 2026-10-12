@@ -65,7 +65,10 @@ export const INITIAL_COLLEGE_DB: CollegeDatabase = {
       attendanceStatus: "Present",
       photo: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80",
       grade: "A+ (92% marks)",
-      joinedDate: "15 Aug 2025"
+      joinedDate: "15 Aug 2025",
+      lastLoginDate: "2026-10-09",
+      lastLoginTime: "08:30 AM",
+      viewedMaterialIds: ["mat-1"]
     },
     {
       id: "std-2",
@@ -86,7 +89,10 @@ export const INITIAL_COLLEGE_DB: CollegeDatabase = {
       attendanceStatus: "Present",
       photo: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80",
       grade: "A+ (95% marks)",
-      joinedDate: "16 Aug 2025"
+      joinedDate: "16 Aug 2025",
+      lastLoginDate: "2026-10-08",
+      lastLoginTime: "02:15 PM",
+      viewedMaterialIds: []
     },
     {
       id: "std-3",
@@ -107,7 +113,10 @@ export const INITIAL_COLLEGE_DB: CollegeDatabase = {
       attendanceStatus: "Present",
       photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80",
       grade: "A (88% marks)",
-      joinedDate: "20 Aug 2025"
+      joinedDate: "20 Aug 2025",
+      lastLoginDate: "2026-10-07",
+      lastLoginTime: "11:20 AM",
+      viewedMaterialIds: []
     },
     {
       id: "std-4",
@@ -236,6 +245,80 @@ export const INITIAL_COLLEGE_DB: CollegeDatabase = {
       photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80",
       qualification: "Ph.D. Physics (QAU)",
       experience: "12+ Years Teaching Experience"
+    }
+  ],
+  courses: [
+    {
+      id: "course-1",
+      title: "FSc Pre-Medical",
+      category: "F.Sc",
+      duration: "Duration: 2 Years",
+      eligibility: "Eligibility: Matric (Science Min 60%)",
+      subjects: "Biology, Chemistry, Physics, English, Urdu, Islamic Studies",
+      badge: "Medical Batch",
+      color: "border-sky-400",
+      description: "Rigorous preparation for NUMS, MDCAT, and UHS top medical universities with state-of-the-art biology & chemistry labs.",
+      isActive: true
+    },
+    {
+      id: "course-2",
+      title: "FSc Pre-Engineering",
+      category: "F.Sc",
+      duration: "Duration: 2 Years",
+      eligibility: "Eligibility: Matric (Science Min 60%)",
+      subjects: "Mathematics, Physics, Chemistry, English, Urdu, Pak Studies",
+      badge: "Engineering (CB1)",
+      color: "border-cyan-400",
+      description: "Focused analytical coaching for ECAT, NUST, GIKI, and UET entry tests featuring dedicated mathematics problem clinics.",
+      isActive: true
+    },
+    {
+      id: "course-3",
+      title: "ICS (Physics & Mathematics)",
+      category: "ICS",
+      duration: "Duration: 2 Years",
+      eligibility: "Eligibility: Matric (Min 50%)",
+      subjects: "Computer Science, Mathematics, Physics, English, Urdu",
+      badge: "Computer Science",
+      color: "border-blue-400",
+      description: "Modern computing fundamentals, Python & C++ algorithm design, and core mathematics for software engineering aspirants.",
+      isActive: true
+    },
+    {
+      id: "course-4",
+      title: "ICS (Statistics & Mathematics)",
+      category: "ICS",
+      duration: "Duration: 2 Years",
+      eligibility: "Eligibility: Matric (Min 50%)",
+      subjects: "Computer Science, Mathematics, Statistics, English, Urdu",
+      badge: "Data & Stats",
+      color: "border-teal-400",
+      description: "Prepares students for emerging fields in Data Science, Artificial Intelligence, Business Analytics, and Financial Systems.",
+      isActive: true
+    },
+    {
+      id: "course-5",
+      title: "ICOM (Commerce)",
+      category: "Commerce",
+      duration: "Duration: 2 Years",
+      eligibility: "Eligibility: Matric",
+      subjects: "Principles of Accounting, Commerce, Commercial Geography, Economics, English",
+      badge: "Commerce Stream",
+      color: "border-indigo-400",
+      description: "Solid conceptual grounding for CA, ACCA, BBA, and banking sectors with real-world case analysis.",
+      isActive: true
+    },
+    {
+      id: "course-6",
+      title: "ECAT & MDCAT Entry Test Crash Program",
+      category: "Entry Test",
+      duration: "Duration: 3 Months",
+      eligibility: "Eligibility: F.Sc / ICS 1st Year or 2nd Year Appeared",
+      subjects: "Mathematics, Physics, Chemistry, Biology, Logical Reasoning",
+      badge: "Entry Test Masterclass",
+      color: "border-rose-400",
+      description: "Intensive 90-day test session series, shortcut tricks for MCQs, past papers analysis, and grand mock exams.",
+      isActive: true
     }
   ],
   materials: [
@@ -444,6 +527,97 @@ export const INITIAL_COLLEGE_DB: CollegeDatabase = {
       status: "delivered",
       channel: "WhatsApp",
       actionToken: "token-std-6-pending"
+    }
+  ],
+  activityNotifications: [
+    {
+      id: "act-1",
+      type: "login",
+      title: "طالب علم لاگ ان (Logged In Today)",
+      description: "احمد خان (Roll: 001, Class: CB1) نے آج کامیابی سے لاگ ان کیا۔",
+      timestamp: "09 Oct 2026, 08:30 AM",
+      date: "2026-10-09",
+      studentId: "std-1",
+      studentName: "Ahmed Khan",
+      studentRoll: "001",
+      isSensitive: false,
+      severity: "success"
+    },
+    {
+      id: "act-2",
+      type: "viewed_material",
+      title: "سٹڈی میٹریل دیکھا گیا (Content Viewed)",
+      description: "احمد خان (Roll: 001) نے 'Ch 3 Differentiation & Integration Notes' دیکھی اور ڈاون لوڈ کی۔",
+      timestamp: "09 Oct 2026, 08:42 AM",
+      date: "2026-10-09",
+      studentId: "std-1",
+      studentName: "Ahmed Khan",
+      studentRoll: "001",
+      materialId: "mat-1",
+      materialTitle: "Ch 3 Differentiation & Integration Notes",
+      isSensitive: false,
+      severity: "info"
+    },
+    {
+      id: "act-3",
+      type: "no_login",
+      title: "آج لاگ ان نہیں کیا (Not Logged In Today)",
+      description: "سارہ نوید (Roll: 002, Class: CB1) نے آج پورٹل پر لاگ ان نہیں کیا ہے۔",
+      timestamp: "09 Oct 2026, 09:00 AM",
+      date: "2026-10-09",
+      studentId: "std-2",
+      studentName: "Sara Naveed",
+      studentRoll: "002",
+      isSensitive: false,
+      severity: "warning"
+    },
+    {
+      id: "act-4",
+      type: "unviewed_material",
+      title: "مواد ابھی تک نہیں دیکھا (Content Not Viewed)",
+      description: "سارہ نوید (Roll: 002) نے ابھی تک 'Mathematics Question Bank 2026' نہیں دیکھی۔",
+      timestamp: "09 Oct 2026, 09:05 AM",
+      date: "2026-10-09",
+      studentId: "std-2",
+      studentName: "Sara Naveed",
+      studentRoll: "002",
+      materialId: "mat-2",
+      materialTitle: "Mathematics Question Bank 2026",
+      isSensitive: false,
+      severity: "warning"
+    },
+    {
+      id: "act-5",
+      type: "no_login",
+      title: "آج لاگ ان نہیں کیا (Not Logged In Today)",
+      description: "عثمان علی (Roll: 003, Class: CB2) نے پچھلے 48 گھنٹوں سے لاگ ان نہیں کیا ہے۔",
+      timestamp: "09 Oct 2026, 09:10 AM",
+      date: "2026-10-09",
+      studentId: "std-3",
+      studentName: "Usman Ali",
+      studentRoll: "003",
+      isSensitive: false,
+      severity: "warning"
+    },
+    {
+      id: "act-6",
+      type: "sensitive_action",
+      title: "حساس ڈیپارٹمنٹ ایکشن: پرنسپل موبائل اپ ڈیٹ (Sensitive Alert)",
+      description: "پرنسپل کی منظوری کے لیے ایس ایم ایس موبائل نمبر اپ ڈیٹ کیا گیا۔ یہ حساس سیکیورٹی تبدیلی ہے۔",
+      timestamp: "08 Oct 2026, 04:30 PM",
+      date: "2026-10-08",
+      isSensitive: true,
+      severity: "alert"
+    },
+    {
+      id: "act-7",
+      type: "sensitive_action",
+      title: "حساس ڈیپارٹمنٹ ایکشن: نیا سیکشن شامل کیا گیا (Sensitive Alert)",
+      description: "ایڈمنسٹریشن نے ریاضی و پری انجینئرنگ کے لیے سیکشن ریکارڈ اور گنجائش میں تبدیلی کی۔",
+      timestamp: "07 Oct 2026, 11:15 AM",
+      date: "2026-10-07",
+      isSensitive: true,
+      severity: "alert"
     }
   ]
 };

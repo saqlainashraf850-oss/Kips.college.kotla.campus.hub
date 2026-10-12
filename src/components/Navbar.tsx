@@ -4,7 +4,6 @@ import {
   GraduationCap,
   Phone,
   Mail,
-  ScanBarcode,
   Menu,
   X,
   ArrowLeft,
@@ -23,7 +22,16 @@ import {
   ShieldAlert,
   Send,
   UploadCloud,
-  ChevronRight
+  ChevronRight,
+  Bell,
+  UserCheck,
+  UserX,
+  Eye,
+  EyeOff,
+  Trash2,
+  CheckCircle2,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -31,8 +39,24 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
-  const { db, activeView, setActiveView, setActiveLoginRole, currentUserSession } = usePortal();
+  const {
+    db,
+    activeView,
+    setActiveView,
+    setActiveLoginRole,
+    currentStudent,
+    currentTeacher,
+    activityNotifications,
+    dismissActivityNotification,
+    clearActivityNotifications,
+    todayLoggedStudents,
+    todayNotLoggedStudents,
+    isActivityCenterOpen,
+    setIsActivityCenterOpen
+  } = usePortal();
+
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<'all' | 'login' | 'no_login' | 'viewed' | 'sensitive'>('all');
   const [isScrolled, setIsScrolled] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -44,9 +68,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Lock body scroll when drawer is open
+  // Lock body scroll when drawer or activity center is open
   useEffect(() => {
-    if (menuDrawerOpen) {
+    if (menuDrawerOpen || isActivityCenterOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -54,17 +78,28 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [menuDrawerOpen]);
+  }, [menuDrawerOpen, isActivityCenterOpen]);
 
   const handleOpenLogin = (role: 'student' | 'teacher' | 'admin') => {
-    if (currentUserSession && currentUserSession.role === role) {
-      setActiveView(role);
+    if (role === 'student' && currentStudent) {
+      setActiveView('student');
+    } else if (role === 'teacher' && currentTeacher) {
+      setActiveView('teacher');
     } else {
       setActiveLoginRole(role);
       setActiveView('login');
     }
     setMenuDrawerOpen(false);
   };
+
+  const filteredNotifications = activityNotifications.filter(n => {
+    if (activityFilter === 'all') return true;
+    if (activityFilter === 'login') return n.type === 'login';
+    if (activityFilter === 'no_login') return n.type === 'no_login';
+    if (activityFilter === 'viewed') return n.type === 'viewed_material' || n.type === 'unviewed_material';
+    if (activityFilter === 'sensitive') return n.isSensitive || n.type === 'sensitive_action';
+    return true;
+  });
 
   const handleApplyNow = () => {
     setActiveView('public');
@@ -214,13 +249,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
                     {isDarkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4" />}
                   </button>
 
-                  {/* Student Portal (Outline Glass Button) */}
+                  {/* Student Portal Button */}
                   <button
                     onClick={() => handleOpenLogin('student')}
                     className="px-3 sm:px-3.5 py-2 text-xs font-bold text-sky-700 bg-sky-50/80 hover:bg-sky-100 rounded-xl border border-sky-200 transition flex items-center space-x-1.5 shadow-xs"
-                    title="Scan Barcode / QR on Student Card"
+                    title="Student Portal Login"
                   >
-                    <ScanBarcode className="w-3.5 h-3.5 text-sky-600 animate-icon-blink" />
+                    <GraduationCap className="w-3.5 h-3.5 text-sky-600" />
                     <span className="hidden xs:inline">Student Portal</span>
                   </button>
 
@@ -287,9 +322,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
                   onClick={() => handleOpenLogin('student')}
                   className="p-2.5 rounded-xl bg-white border border-sky-200 hover:border-sky-400 hover:bg-sky-50 transition text-center flex flex-col items-center justify-center shadow-xs group"
                 >
-                  <ScanBarcode className="w-5 h-5 text-sky-600 mb-1 group-hover:scale-110 transition-transform" />
+                  <GraduationCap className="w-5 h-5 text-sky-600 mb-1 group-hover:scale-110 transition-transform" />
                   <span className="text-[11px] font-bold text-slate-800 leading-tight">Student</span>
-                  <span className="text-[9px] text-sky-600 font-semibold">Card Login</span>
+                  <span className="text-[9px] text-sky-600 font-semibold">Portal</span>
                 </button>
 
                 <button
@@ -299,7 +334,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
                 >
                   <UploadCloud className="w-5 h-5 text-indigo-600 mb-1 group-hover:scale-110 transition-transform" />
                   <span className="text-[11px] font-bold text-slate-800 leading-tight">Teacher</span>
-                  <span className="text-[9px] text-indigo-600 font-semibold">Uploads</span>
+                  <span className="text-[9px] text-indigo-600 font-semibold">Workspace</span>
                 </button>
 
                 <button
@@ -491,6 +526,361 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
                   <span>WhatsApp</span>
                 </a>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* DEPARTMENT NOTIFICATIONS & STUDENT ACTIVITY TRACKING MODAL */}
+      {isActivityCenterOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
+          {/* Backdrop */}
+          <div
+            onClick={() => setIsActivityCenterOpen(false)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity duration-300"
+          />
+
+          {/* Modal Container */}
+          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl z-10 flex flex-col max-h-[90vh] border border-sky-200 overflow-hidden animate-fade-in">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-sky-900 via-sky-800 to-cyan-900 text-white flex items-center justify-between border-b border-sky-400/20">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-sky-500/30 text-cyan-300 flex items-center justify-center border border-sky-300/30">
+                  <Bell className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight flex items-center space-x-2">
+                    <span>ڈیپارٹمنٹ نوٹیفیکیشنز & سٹوڈنٹ ٹریکنگ سینٹر</span>
+                    <span className="text-[10px] bg-sky-500/40 text-sky-200 px-2 py-0.5 rounded-full font-bold">Live Portal</span>
+                  </h3>
+                  <p className="text-[11px] text-sky-200 font-medium">
+                    طلبہ کے روزانہ لاگ ان، غیر حاضر طلبہ، تعلیمی مواد اور حساس ڈیپارٹمنٹ ایکٹیوٹی
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {activityNotifications.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearActivityNotifications}
+                    className="p-1.5 sm:px-2.5 sm:py-1 bg-white/10 hover:bg-white/20 text-sky-200 hover:text-white rounded-xl text-xs font-bold transition flex items-center space-x-1"
+                    title="Clear All Notifications"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Clear All</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsActivityCenterOpen(false)}
+                  className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-sky-200 hover:text-white transition"
+                  aria-label="Close Activity Center"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Summary Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-sky-50/80 border-b border-sky-100 text-xs">
+              <div className="bg-white p-2.5 rounded-xl border border-emerald-200 shadow-xs flex items-center space-x-2.5">
+                <div className="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block">آج لاگ ان کیا</span>
+                  <strong className="text-emerald-700 text-sm font-black">{todayLoggedStudents.length} طلبہ</strong>
+                </div>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-xs flex items-center space-x-2.5">
+                <div className="p-1.5 bg-amber-100 text-amber-800 rounded-lg">
+                  <UserX className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block">آج لاگ ان نہیں کیا</span>
+                  <strong className="text-amber-700 text-sm font-black">{todayNotLoggedStudents.length} طلبہ</strong>
+                </div>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-rose-200 shadow-xs flex items-center space-x-2.5">
+                <div className="p-1.5 bg-rose-100 text-rose-800 rounded-lg">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block">حساس ڈیپارٹمنٹ الرٹس</span>
+                  <strong className="text-rose-700 text-sm font-black">
+                    {activityNotifications.filter(n => n.isSensitive).length} الرٹس
+                  </strong>
+                </div>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-sky-200 shadow-xs flex items-center space-x-2.5">
+                <div className="p-1.5 bg-sky-100 text-sky-800 rounded-lg">
+                  <Eye className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block">مواد ٹریکنگ</span>
+                  <strong className="text-sky-700 text-sm font-black">
+                    {activityNotifications.filter(n => n.type === 'viewed_material' || n.type === 'unviewed_material').length} ایونٹس
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Navigation Tabs */}
+            <div className="flex items-center space-x-1 p-2 bg-slate-100/80 border-b border-slate-200 overflow-x-auto no-scrollbar text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setActivityFilter('all')}
+                className={`px-3 py-1.5 rounded-xl transition whitespace-nowrap flex items-center space-x-1.5 ${
+                  activityFilter === 'all'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                }`}
+              >
+                <span>تمام نوٹیفیکیشنز</span>
+                <span className="text-[10px] px-1.5 py-0.2 bg-white/20 rounded-full font-black">
+                  {activityNotifications.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActivityFilter('login')}
+                className={`px-3 py-1.5 rounded-xl transition whitespace-nowrap flex items-center space-x-1.5 ${
+                  activityFilter === 'login'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>آج لاگ ان کیا</span>
+                <span className="text-[10px] px-1.5 py-0.2 bg-white/20 rounded-full font-black">
+                  {todayLoggedStudents.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActivityFilter('no_login')}
+                className={`px-3 py-1.5 rounded-xl transition whitespace-nowrap flex items-center space-x-1.5 ${
+                  activityFilter === 'no_login'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                }`}
+              >
+                <UserX className="w-3.5 h-3.5" />
+                <span>لاگ ان نہیں کیا (غیر حاضر)</span>
+                <span className="text-[10px] px-1.5 py-0.2 bg-white/20 rounded-full font-black">
+                  {todayNotLoggedStudents.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActivityFilter('viewed')}
+                className={`px-3 py-1.5 rounded-xl transition whitespace-nowrap flex items-center space-x-1.5 ${
+                  activityFilter === 'viewed'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>مواد دیکھا / نہیں دیکھا</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActivityFilter('sensitive')}
+                className={`px-3 py-1.5 rounded-xl transition whitespace-nowrap flex items-center space-x-1.5 ${
+                  activityFilter === 'sensitive'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                }`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                <span>حساس ڈیپارٹمنٹ الرٹس</span>
+              </button>
+            </div>
+
+            {/* Notification Items List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {/* Special View: When "Not Logged In" filter is active, also display roster of students who haven't logged in today */}
+              {activityFilter === 'no_login' && todayNotLoggedStudents.length > 0 && (
+                <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-300 space-y-2 mb-3">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                    <span className="flex items-center space-x-1.5">
+                      <UserX className="w-4 h-4 text-amber-600" />
+                      <span>ان طلبہ نے آج لاگ ان نہیں کیا (Currently Inactive Today):</span>
+                    </span>
+                    <span className="text-[10px] bg-amber-200 px-2 py-0.5 rounded-full font-black">
+                      {todayNotLoggedStudents.length} طلبہ
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {todayNotLoggedStudents.map(std => (
+                      <div
+                        key={std.id}
+                        className="p-2.5 rounded-xl bg-white border border-amber-200 flex items-center space-x-3 text-xs shadow-2xs"
+                      >
+                        <img
+                          src={std.photo}
+                          alt={std.name}
+                          className="w-10 h-10 rounded-xl object-cover border border-amber-200"
+                        />
+                        <div className="overflow-hidden flex-1 leading-tight">
+                          <h5 className="font-extrabold text-slate-900 truncate">{std.name}</h5>
+                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            Roll: <strong>{std.roll}</strong> • Sec: {std.section}
+                          </p>
+                          <p className="text-[10px] text-amber-700 font-semibold mt-0.5">
+                            {std.lastLoginDate ? `آخری لاگ ان: ${std.lastLoginDate}` : 'آج تک لاگ ان نہیں کیا'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Special View: When "Logged In" filter is active, display students who logged in today */}
+              {activityFilter === 'login' && todayLoggedStudents.length > 0 && (
+                <div className="p-3.5 rounded-2xl bg-emerald-50/90 border border-emerald-300 space-y-2 mb-3">
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
+                    <span className="flex items-center space-x-1.5">
+                      <UserCheck className="w-4 h-4 text-emerald-600" />
+                      <span>ان طلبہ نے آج کامیابی سے پورٹل پر لاگ ان کیا ہے:</span>
+                    </span>
+                    <span className="text-[10px] bg-emerald-200 px-2 py-0.5 rounded-full font-black">
+                      {todayLoggedStudents.length} طلبہ
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {todayLoggedStudents.map(std => (
+                      <div
+                        key={std.id}
+                        className="p-2.5 rounded-xl bg-white border border-emerald-200 flex items-center space-x-3 text-xs shadow-2xs"
+                      >
+                        <img
+                          src={std.photo}
+                          alt={std.name}
+                          className="w-10 h-10 rounded-xl object-cover border border-emerald-200"
+                        />
+                        <div className="overflow-hidden flex-1 leading-tight">
+                          <h5 className="font-extrabold text-slate-900 truncate">{std.name}</h5>
+                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            Roll: <strong>{std.roll}</strong> • {std.class} ({std.section})
+                          </p>
+                          <p className="text-[10px] text-emerald-700 font-bold mt-0.5">
+                            آج کا وقت: {std.lastLoginTime || '08:30 AM'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {filteredNotifications.length === 0 ? (
+                <div className="p-10 text-center space-y-2 text-slate-400">
+                  <Bell className="w-8 h-8 mx-auto text-slate-300" />
+                  <p className="text-xs font-bold">اس کیٹیگری میں فی الحال کوئی نوٹیفیکیشن موجود نہیں ہے۔</p>
+                </div>
+              ) : (
+                filteredNotifications.map(item => (
+                  <div
+                    key={item.id}
+                    className={`p-3.5 rounded-2xl border transition space-y-1.5 relative group ${
+                      item.isSensitive || item.severity === 'alert'
+                        ? 'bg-rose-50/70 border-rose-300'
+                        : item.severity === 'success' || item.type === 'login'
+                        ? 'bg-emerald-50/70 border-emerald-200'
+                        : item.severity === 'warning' || item.type === 'no_login'
+                        ? 'bg-amber-50/70 border-amber-200'
+                        : 'bg-white border-sky-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        {item.isSensitive ? (
+                          <span className="p-1 bg-rose-500 text-white rounded-lg">
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                          </span>
+                        ) : item.type === 'login' ? (
+                          <span className="p-1 bg-emerald-500 text-white rounded-lg">
+                            <UserCheck className="w-3.5 h-3.5" />
+                          </span>
+                        ) : item.type === 'no_login' ? (
+                          <span className="p-1 bg-amber-500 text-white rounded-lg">
+                            <UserX className="w-3.5 h-3.5" />
+                          </span>
+                        ) : item.type === 'viewed_material' ? (
+                          <span className="p-1 bg-sky-500 text-white rounded-lg">
+                            <Eye className="w-3.5 h-3.5" />
+                          </span>
+                        ) : (
+                          <span className="p-1 bg-indigo-500 text-white rounded-lg">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                          </span>
+                        )}
+
+                        <div>
+                          <h4 className="font-black text-xs text-slate-900 leading-tight">
+                            {item.title}
+                          </h4>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {item.timestamp}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-1.5">
+                        {item.isSensitive && (
+                          <span className="bg-rose-100 text-rose-800 text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-rose-300">
+                            حساس ڈیپارٹمنٹ تبدیلی
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => dismissActivityNotification(item.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-white transition opacity-60 group-hover:opacity-100"
+                          title="Dismiss notification"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-700 leading-relaxed font-medium pl-6">
+                      {item.description}
+                    </p>
+
+                    {item.studentRoll && (
+                      <div className="pl-6 flex items-center space-x-3 text-[10px] text-slate-500 font-mono">
+                        <span>Roll: <strong>{item.studentRoll}</strong></span>
+                        {item.materialTitle && <span>مواد: <strong>{item.materialTitle}</strong></span>}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+              <span className="text-[11px]">
+                KIPS College Kotla • Digital Department Security & Activity Tracking
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsActivityCenterOpen(false)}
+                className="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl text-xs shadow-xs transition"
+              >
+                Close Center
+              </button>
             </div>
           </div>
         </div>

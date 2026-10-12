@@ -25,7 +25,7 @@ import {
 import { MaterialItem } from '../types';
 
 export const StudentPortal: React.FC = () => {
-  const { db, currentStudent, logout, setActiveView } = usePortal();
+  const { db, currentStudent, logout, setActiveView, recordMaterialView } = usePortal();
   const [selectedMedia, setSelectedMedia] = useState<MaterialItem | null>(null);
 
   if (!currentStudent) {
@@ -256,92 +256,131 @@ export const StudentPortal: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sectionMaterials.map(mat => (
-                <div
-                  key={mat.id}
-                  className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-sky-300 hover:shadow-md transition space-y-3 flex flex-col justify-between"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span
-                        className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase ${
-                          mat.type === 'PDF'
-                            ? 'bg-red-50 text-red-600 border border-red-200'
-                            : mat.type === 'Video'
-                            ? 'bg-indigo-50 text-indigo-600 border border-indigo-200'
-                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        }`}
-                      >
-                        {mat.type}
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-400">{mat.date}</span>
+              {sectionMaterials.map(mat => {
+                const isViewed = currentStudent.viewedMaterialIds?.includes(mat.id);
+                return (
+                  <div
+                    key={mat.id}
+                    className={`p-4 rounded-2xl bg-white border transition space-y-3 flex flex-col justify-between ${
+                      isViewed ? 'border-slate-200' : 'border-sky-300 ring-1 ring-sky-200/50 shadow-xs'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase ${
+                            mat.type === 'PDF'
+                              ? 'bg-red-50 text-red-600 border border-red-200'
+                              : mat.type === 'Video'
+                              ? 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}
+                        >
+                          {mat.type}
+                        </span>
+
+                        {/* Viewed vs Unviewed Badge */}
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center space-x-1 ${
+                            isViewed
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800 animate-pulse'
+                          }`}
+                          title={isViewed ? 'You have viewed this material' : 'You have not viewed this material yet'}
+                        >
+                          {isViewed ? (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>دیکھا گیا (Viewed)</span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>ابھی نہیں دیکھا (Not Viewed)</span>
+                            </>
+                          )}
+                        </span>
+                      </div>
+
+                      <h4 className="font-extrabold text-sm text-slate-800 leading-snug">{mat.title}</h4>
+                      {mat.description && (
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{mat.description}</p>
+                      )}
+                      <p className="text-[11px] text-sky-600 font-semibold">Teacher: {mat.uploader}</p>
+
+                      {/* Image Preview */}
+                      {mat.type === 'Image' && mat.fileUrl && (
+                        <div
+                          onClick={() => {
+                            recordMaterialView(currentStudent.id, mat.id);
+                            setSelectedMedia(mat);
+                          }}
+                          className="h-32 rounded-xl overflow-hidden cursor-pointer relative group border border-slate-200"
+                        >
+                          <img
+                            src={mat.fileUrl}
+                            alt={mat.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition"
+                          />
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold">
+                            Click to Enlarge
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    <h4 className="font-extrabold text-sm text-slate-800 leading-snug">{mat.title}</h4>
-                    {mat.description && (
-                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{mat.description}</p>
-                    )}
-                    <p className="text-[11px] text-sky-600 font-semibold">Teacher: {mat.uploader}</p>
-
-                    {/* Image Preview */}
-                    {mat.type === 'Image' && mat.fileUrl && (
-                      <div
-                        onClick={() => setSelectedMedia(mat)}
-                        className="h-32 rounded-xl overflow-hidden cursor-pointer relative group border border-slate-200"
-                      >
-                        <img
-                          src={mat.fileUrl}
-                          alt={mat.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition"
-                        />
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-white text-xs font-bold">
-                          Click to Enlarge
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Link */}
-                  <div className="pt-2 border-t border-slate-100">
-                    {mat.type === 'Video' && mat.videoUrl && (
-                      <a
-                        href={mat.videoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>Watch Video Lecture</span>
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                    )}
-
-                    {mat.type === 'PDF' && (
-                      mat.fileUrl ? (
+                    {/* Action Link & Tracking */}
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                      {mat.type === 'Video' && mat.videoUrl && (
                         <a
-                          href={mat.fileUrl}
-                          download={`${mat.title}.pdf`}
-                          className="w-full py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition"
+                          href={mat.videoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => recordMaterialView(currentStudent.id, mat.id)}
+                          className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition"
                         >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Download PDF Notes</span>
+                          <Play className="w-3.5 h-3.5" />
+                          <span>Watch Video Lecture</span>
+                          <ExternalLink className="w-3 h-3 ml-1" />
                         </a>
-                      ) : (
-                        <div className="p-2 bg-slate-50 text-slate-600 rounded-xl text-center text-[11px] font-semibold flex items-center justify-center space-x-1">
-                          <FileText className="w-3.5 h-3.5 text-sky-600" />
-                          <span>Standard Reference Notes Attached</span>
-                        </div>
-                      )
-                    )}
+                      )}
 
-                    {mat.type === 'Image' && !mat.fileUrl && (
-                      <div className="p-2 bg-slate-50 text-slate-500 rounded-xl text-center text-[11px]">
-                        Whiteboard snapshot reference
-                      </div>
-                    )}
+                      {mat.type === 'PDF' && (
+                        mat.fileUrl ? (
+                          <a
+                            href={mat.fileUrl}
+                            download={`${mat.title}.pdf`}
+                            onClick={() => recordMaterialView(currentStudent.id, mat.id)}
+                            className="w-full py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download PDF Notes</span>
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => recordMaterialView(currentStudent.id, mat.id)}
+                            className="w-full p-2 bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-800 rounded-xl text-center text-[11px] font-semibold flex items-center justify-center space-x-1 transition"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-sky-600" />
+                            <span>{isViewed ? 'Marked as Viewed' : 'Mark as Viewed'}</span>
+                          </button>
+                        )
+                      )}
+
+                      {mat.type === 'Image' && !mat.fileUrl && (
+                        <button
+                          type="button"
+                          onClick={() => recordMaterialView(currentStudent.id, mat.id)}
+                          className="w-full p-2 bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 rounded-xl text-center text-[11px] font-semibold transition"
+                        >
+                          {isViewed ? 'Whiteboard Reference (Viewed)' : 'Mark Reference as Viewed'}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -470,7 +509,7 @@ export const StudentPortal: React.FC = () => {
                 <div className="w-3 h-full bg-slate-900"></div>
               </div>
               <p className="text-[9px] text-slate-500 font-bold">
-                Scan this card barcode at college gate and portal login
+                Official Student ID Card • Valid for Campus Attendance & Academic Records
               </p>
             </div>
 

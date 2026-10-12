@@ -31,7 +31,10 @@ import {
   Eye,
   Check,
   ShieldCheck,
-  Send
+  Send,
+  BookOpen,
+  Edit2,
+  Sparkles
 } from 'lucide-react';
 
 export const AdminPortal: React.FC = () => {
@@ -49,7 +52,12 @@ export const AdminPortal: React.FC = () => {
     updatePrincipalMobile,
     deleteStudent,
     addTeacher,
+    updateTeacher,
     deleteTeacher,
+    addCourse,
+    updateCourse,
+    deleteCourse,
+    toggleCourseStatus,
     addAnnouncement,
     deleteAnnouncement,
     addGalleryItem,
@@ -61,15 +69,20 @@ export const AdminPortal: React.FC = () => {
     deleteLocation,
     exportBackup,
     importBackup,
-    resetDatabase
+    resetDatabase,
+    activityNotifications,
+    todayLoggedStudents,
+    todayNotLoggedStudents,
+    clearActivityNotifications,
+    dismissActivityNotification
   } = usePortal();
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'approvals' | 'contact' | 'locations' | 'inquiries' | 'sections' | 'students' | 'teachers' | 'notices' | 'principal' | 'gallery' | 'branding' | 'settings' | 'backup'
+    'overview' | 'approvals' | 'activity' | 'courses' | 'contact' | 'locations' | 'inquiries' | 'sections' | 'students' | 'teachers' | 'notices' | 'principal' | 'gallery' | 'branding' | 'settings' | 'backup'
   >('approvals'); // Default to Principal Approvals so the user immediately sees the requested feature!
 
   // --- APPROVAL MANAGEMENT STATE ---
-  const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'approved' | 'rejected' | 'all' | 'notifications'>('pending');
+  const [approvalSubTab, setApprovalSubTab] = useState<'pending' | 'approved' | 'rejected' | 'all' | 'notifications' | 'activity'>('pending');
   const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<any | null>(null);
   const [studentToReject, setStudentToReject] = useState<any | null>(null);
   const [rejectionReasonInput, setRejectionReasonInput] = useState('');
@@ -138,6 +151,8 @@ export const AdminPortal: React.FC = () => {
   const [secCapacity, setSecCapacity] = useState(60);
 
   const [showAddTeacherModal, setShowAddTeacherModal] = useState(false);
+  const [showEditTeacherModal, setShowEditTeacherModal] = useState(false);
+  const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
   const [teaName, setTeaName] = useState('');
   const [teaEmail, setTeaEmail] = useState('');
   const [teaPass, setTeaPass] = useState('1234');
@@ -146,6 +161,20 @@ export const AdminPortal: React.FC = () => {
   const [teaQual, setTeaQual] = useState('');
   const [teaExp, setTeaExp] = useState('');
   const [teaPhotoUrl, setTeaPhotoUrl] = useState('');
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+
+  // Course Management State
+  const [showAddCourseModal, setShowAddCourseModal] = useState(false);
+  const [showEditCourseModal, setShowEditCourseModal] = useState(false);
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [courseTitle, setCourseTitle] = useState('');
+  const [courseCategory, setCourseCategory] = useState<'F.Sc' | 'ICS' | 'Commerce' | 'General' | 'Entry Test'>('F.Sc');
+  const [courseDuration, setCourseDuration] = useState('Duration: 2 Years');
+  const [courseEligibility, setCourseEligibility] = useState('Eligibility: Matric (Science Min 60%)');
+  const [courseSubjects, setCourseSubjects] = useState('Biology, Chemistry, Physics, English, Urdu');
+  const [courseBadge, setCourseBadge] = useState('Academic Stream');
+  const [courseDescription, setCourseDescription] = useState('');
+  const [courseColor, setCourseColor] = useState('border-sky-400');
 
   const [showAddNoticeModal, setShowAddNoticeModal] = useState(false);
   const [notTitle, setNotTitle] = useState('');
@@ -431,7 +460,7 @@ export const AdminPortal: React.FC = () => {
     reader.readAsText(file);
   };
 
-  // Helper file reader for base64 images
+  // Helper file reader with automatic canvas image compression (prevents localStorage quota errors!)
   const handlePhotoUploadHelper = (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (url: string) => void
@@ -440,9 +469,149 @@ export const AdminPortal: React.FC = () => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
-      setter(evt.target?.result as string);
+      const rawResult = evt.target?.result as string;
+      if (!rawResult) return;
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxDim = 350;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.75);
+            setter(compressed);
+            return;
+          }
+        } catch (err) {
+          console.warn("Canvas compression fallback", err);
+        }
+        setter(rawResult);
+      };
+      img.onerror = () => setter(rawResult);
+      img.src = rawResult;
     };
     reader.readAsDataURL(file);
+  };
+
+  // --- TEACHER EDIT HANDLERS ---
+  const handleStartEditTeacher = (tea: any) => {
+    setEditingTeacherId(tea.id);
+    setTeaName(tea.name);
+    setTeaEmail(tea.email);
+    setTeaPass(tea.pass || '1234');
+    setTeaSubject(tea.subject);
+    setTeaIncharge(tea.inchargeSection || 'None');
+    setTeaQual(tea.qualification || '');
+    setTeaExp(tea.experience || '');
+    setTeaPhotoUrl(tea.photo || '');
+    setShowEditTeacherModal(true);
+  };
+
+  const handleSaveEditTeacher = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeacherId) return;
+    if (!teaName.trim() || !teaEmail.trim() || !teaPass.trim() || !teaSubject.trim()) {
+      showAdminToast("Name, Gmail, Password and Subject are required.");
+      return;
+    }
+    updateTeacher(editingTeacherId, {
+      name: teaName.trim(),
+      email: teaEmail.trim().toLowerCase(),
+      pass: teaPass.trim(),
+      subject: teaSubject.trim(),
+      inchargeSection: teaIncharge,
+      qualification: teaQual.trim() || 'Senior Subject Specialist',
+      experience: teaExp.trim() || 'Faculty Member',
+      photo: teaPhotoUrl
+    });
+    setShowEditTeacherModal(false);
+    setEditingTeacherId(null);
+    showAdminToast(`Teacher "${teaName.trim()}" updated successfully!`);
+  };
+
+  // --- COURSE MANAGEMENT HANDLERS ---
+  const handleCreateCourse = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!courseTitle.trim()) {
+      showAdminToast("Course title is required.");
+      return;
+    }
+    const res = addCourse({
+      title: courseTitle.trim(),
+      category: courseCategory,
+      duration: courseDuration.trim() || 'Duration: 2 Years',
+      eligibility: courseEligibility.trim() || 'Eligibility: Matric',
+      subjects: courseSubjects.trim(),
+      badge: courseBadge.trim() || 'Academic Batch',
+      color: courseColor,
+      description: courseDescription.trim(),
+      isActive: true
+    });
+    if (!res.success) {
+      showAdminToast(res.message || "Failed to add course.");
+      return;
+    }
+    setShowAddCourseModal(false);
+    setCourseTitle('');
+    setCourseSubjects('');
+    setCourseDescription('');
+    showAdminToast(`Course "${courseTitle.trim()}" added to portal!`);
+  };
+
+  const handleStartEditCourse = (c: any) => {
+    setEditingCourseId(c.id);
+    setCourseTitle(c.title);
+    setCourseCategory(c.category || 'F.Sc');
+    setCourseDuration(c.duration || 'Duration: 2 Years');
+    setCourseEligibility(c.eligibility || 'Eligibility: Matric');
+    setCourseSubjects(c.subjects || '');
+    setCourseBadge(c.badge || 'Academic Batch');
+    setCourseColor(c.color || 'border-sky-400');
+    setCourseDescription(c.description || '');
+    setShowEditCourseModal(true);
+  };
+
+  const handleSaveEditCourse = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCourseId) return;
+    if (!courseTitle.trim()) {
+      showAdminToast("Course title is required.");
+      return;
+    }
+    updateCourse(editingCourseId, {
+      title: courseTitle.trim(),
+      category: courseCategory,
+      duration: courseDuration.trim(),
+      eligibility: courseEligibility.trim(),
+      subjects: courseSubjects.trim(),
+      badge: courseBadge.trim(),
+      color: courseColor,
+      description: courseDescription.trim()
+    });
+    setShowEditCourseModal(false);
+    setEditingCourseId(null);
+    showAdminToast(`Course "${courseTitle.trim()}" updated successfully!`);
+  };
+
+  const handleDeleteCourse = (id: string, title: string) => {
+    deleteCourse(id);
+    showAdminToast(`Course "${title}" removed.`);
   };
 
   const pendingStudents = db.students.filter(s => s.status === 'pending');
@@ -520,6 +689,27 @@ export const AdminPortal: React.FC = () => {
               )}
             </button>
 
+            {/* LIVE CAMPUS ACTIVITIES & AUDIT (Admin Exclusive) */}
+            <button
+              onClick={() => setActiveTab('activity')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition ${
+                activeTab === 'activity' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                </span>
+                <span className="font-bold">Live Campus Activities</span>
+              </div>
+              <span className={`px-1.5 py-0.5 text-[9px] rounded font-black ${
+                activeTab === 'activity' ? 'bg-sky-500 text-white' : activityNotifications.length > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {activityNotifications.length}
+              </span>
+            </button>
+
             <button
               onClick={() => setActiveTab('overview')}
               className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
@@ -528,6 +718,22 @@ export const AdminPortal: React.FC = () => {
             >
               <LayoutDashboard className="w-4 h-4" />
               <span>Overview</span>
+            </button>
+
+            {/* Courses & Academic Programs Management */}
+            <button
+              onClick={() => setActiveTab('courses')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition ${
+                activeTab === 'courses' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <BookOpen className="w-4 h-4 text-cyan-600" />
+                <span className="font-bold">Courses & Programs</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded-full bg-cyan-100 text-cyan-800 text-[9px] font-bold">
+                {(db.courses || []).length}
+              </span>
             </button>
 
             {/* Requested Feature Highlighted: Contact */}
@@ -599,12 +805,17 @@ export const AdminPortal: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('teachers')}
-              className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl transition ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition ${
                 activeTab === 'teachers' ? 'bg-sky-600 text-white shadow' : 'hover:bg-sky-50 text-slate-700'
               }`}
             >
-              <GraduationCap className="w-4 h-4 text-indigo-600" />
-              <span>Maths Faculty & Teachers</span>
+              <div className="flex items-center space-x-2.5">
+                <GraduationCap className="w-4 h-4 text-indigo-600" />
+                <span>Maths Faculty & Teachers</span>
+              </div>
+              <span className="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[9px] font-bold">
+                {db.teachers.length}
+              </span>
             </button>
 
             <button
@@ -967,10 +1178,22 @@ export const AdminPortal: React.FC = () => {
                   <Send className="w-3.5 h-3.5" />
                   <span>SMS/Mobile Logs</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setApprovalSubTab('activity')}
+                  className={`px-3.5 py-2 rounded-xl transition whitespace-nowrap flex items-center space-x-1.5 font-bold ${
+                    approvalSubTab === 'activity'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'text-rose-700 bg-rose-50 hover:bg-rose-100'
+                  }`}
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>سٹوڈنٹ لاگ ان و حساس الرٹس ({activityNotifications.length})</span>
+                </button>
               </div>
 
               {/* Search Bar */}
-              {approvalSubTab !== 'notifications' && (
+              {approvalSubTab !== 'notifications' && approvalSubTab !== 'activity' && (
                 <div className="relative sm:w-72">
                   <input
                     type="text"
@@ -985,7 +1208,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* TAB CONTENT: REQUESTS LIST */}
-            {approvalSubTab !== 'notifications' && (
+            {approvalSubTab !== 'notifications' && approvalSubTab !== 'activity' && (
               <div className="space-y-3.5">
                 {filteredApprovalStudents.length === 0 ? (
                   <div className="glass-panel p-12 text-center rounded-3xl border border-dashed border-slate-300 space-y-2">
@@ -1219,6 +1442,210 @@ export const AdminPortal: React.FC = () => {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* TAB CONTENT: LIVE STUDENT ACTIVITY & SENSITIVE DEPARTMENT ALERTS */}
+            {approvalSubTab === 'activity' && (
+              <div className="space-y-5 animate-fade-in">
+                {/* Header Strip with Action Controls */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 p-4 rounded-2xl text-white">
+                  <div>
+                    <h3 className="text-sm font-black flex items-center space-x-2">
+                      <Bell className="w-4 h-4 text-rose-400 animate-pulse" />
+                      <span>ڈیپارٹمنٹ نوٹیفیکیشنز و سٹوڈنٹ ٹریکنگ سسٹم (Live Monitoring)</span>
+                    </h3>
+                    <p className="text-[11px] text-sky-200 mt-0.5">
+                      آج لاگ ان کرنے والے، غیر حاضر طلبہ، تعلیمی مواد دیکھا گیا/نہیں اور حساس ڈیپارٹمنٹ الرٹس
+                    </p>
+                  </div>
+                  {activityNotifications.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearActivityNotifications}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Clear All Alerts</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* 4 Stat Overview Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <span className="text-[10px] font-bold text-emerald-800 uppercase block">آج لاگ ان کیا</span>
+                    <strong className="text-xl font-black text-emerald-900">{todayLoggedStudents.length} طلبہ</strong>
+                    <span className="text-[10px] text-emerald-600 block mt-0.5">Active Today</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
+                    <span className="text-[10px] font-bold text-amber-800 uppercase block">لاگ ان نہیں کیا (غیر حاضر)</span>
+                    <strong className="text-xl font-black text-amber-900">{todayNotLoggedStudents.length} طلبہ</strong>
+                    <span className="text-[10px] text-amber-600 block mt-0.5">Inactive Today</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200">
+                    <span className="text-[10px] font-bold text-rose-800 uppercase block">حساس ڈیپارٹمنٹ الرٹس</span>
+                    <strong className="text-xl font-black text-rose-900">
+                      {activityNotifications.filter(n => n.isSensitive).length}
+                    </strong>
+                    <span className="text-[10px] text-rose-600 block mt-0.5">Security / Audit</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200">
+                    <span className="text-[10px] font-bold text-sky-800 uppercase block">مواد ٹریکنگ ایونٹس</span>
+                    <strong className="text-xl font-black text-sky-900">
+                      {activityNotifications.filter(n => n.type === 'viewed_material' || n.type === 'unviewed_material').length}
+                    </strong>
+                    <span className="text-[10px] text-sky-600 block mt-0.5">Notes & Lectures</span>
+                  </div>
+                </div>
+
+                {/* Section 1: Students who logged in today */}
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-emerald-200 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-emerald-100 pb-2.5">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                      <h4 className="font-black text-xs text-emerald-950 uppercase tracking-wider">
+                        1. آج لاگ ان کرنے والے طلبہ (Logged In Today)
+                      </h4>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                      {todayLoggedStudents.length} طلبہ حاضر
+                    </span>
+                  </div>
+
+                  {todayLoggedStudents.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-3 text-center">آج ابھی تک کسی طالب علم نے لاگ ان نہیں کیا۔</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {todayLoggedStudents.map(std => (
+                        <div
+                          key={std.id}
+                          className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 flex items-center space-x-3 text-xs"
+                        >
+                          <img
+                            src={std.photo}
+                            alt={std.name}
+                            className="w-11 h-11 rounded-xl object-cover border border-emerald-300"
+                          />
+                          <div className="overflow-hidden flex-1 leading-tight">
+                            <h5 className="font-extrabold text-slate-900 truncate">{std.name}</h5>
+                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              Roll: <strong className="text-sky-700">{std.roll}</strong> • Sec: {std.section}
+                            </p>
+                            <p className="text-[10px] text-emerald-700 font-bold mt-1 flex items-center space-x-1">
+                              <Clock className="w-3 h-3 text-emerald-600" />
+                              <span>لاگ ان وقت: {std.lastLoginTime || '08:30 AM'}</span>
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 2: Students who have NOT logged in today */}
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-amber-100 pb-2.5">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                      <h4 className="font-black text-xs text-amber-950 uppercase tracking-wider">
+                        2. آج لاگ ان نہ کرنے والے طلبہ (Not Logged In Today / Inactive)
+                      </h4>
+                    </div>
+                    <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                      {todayNotLoggedStudents.length} طلبہ غیر حاضر
+                    </span>
+                  </div>
+
+                  {todayNotLoggedStudents.length === 0 ? (
+                    <p className="text-xs text-emerald-600 py-3 text-center font-bold">بہترین! تمام منظور شدہ طلبہ آج لاگ ان کر چکے ہیں۔</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {todayNotLoggedStudents.map(std => (
+                        <div
+                          key={std.id}
+                          className="p-3 rounded-xl bg-amber-50/50 border border-amber-200 flex items-center space-x-3 text-xs"
+                        >
+                          <img
+                            src={std.photo}
+                            alt={std.name}
+                            className="w-11 h-11 rounded-xl object-cover border border-amber-300"
+                          />
+                          <div className="overflow-hidden flex-1 leading-tight">
+                            <h5 className="font-extrabold text-slate-900 truncate">{std.name}</h5>
+                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              Roll: <strong className="text-amber-800">{std.roll}</strong> • {std.class}
+                            </p>
+                            <p className="text-[10px] text-slate-600 mt-0.5">
+                              Mobile: <span className="font-mono">{std.mobile}</span>
+                            </p>
+                            <p className="text-[10px] text-amber-800 font-semibold mt-0.5">
+                              {std.lastLoginDate ? `آخری لاگ ان: ${std.lastLoginDate}` : 'آج تک پورٹل نہیں کھولا'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 3: All Detailed Activity Notifications & Sensitive Logs */}
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">
+                      3. ڈیپارٹمنٹ حساس الرٹس اور میٹریل ویو آڈٹ لاگ (Complete Activity Trail)
+                    </h4>
+                    <span className="text-xs text-slate-500 font-bold">
+                      {activityNotifications.length} کل لاگز
+                    </span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {activityNotifications.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-3 text-center">کوئی لاگ درج نہیں ہے۔</p>
+                    ) : (
+                      activityNotifications.map(item => (
+                        <div
+                          key={item.id}
+                          className={`p-3 rounded-xl border flex items-start justify-between gap-3 text-xs ${
+                            item.isSensitive || item.severity === 'alert'
+                              ? 'bg-rose-50/70 border-rose-300 text-rose-950'
+                              : item.type === 'login'
+                              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                              : item.type === 'no_login'
+                              ? 'bg-amber-50/70 border-amber-200 text-amber-950'
+                              : 'bg-sky-50/50 border-sky-200 text-sky-950'
+                          }`}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2">
+                              <span className="font-black text-xs">{item.title}</span>
+                              {item.isSensitive && (
+                                <span className="px-2 py-0.2 bg-rose-200 text-rose-900 rounded-full text-[9px] font-black uppercase">
+                                  حساس ایکشن
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-mono">({item.timestamp})</span>
+                            </div>
+                            <p className="text-slate-700 font-medium leading-relaxed">{item.description}</p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => dismissActivityNotification(item.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-white transition flex-shrink-0"
+                            title="Dismiss"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1828,21 +2255,47 @@ export const AdminPortal: React.FC = () => {
         {/* TAB: TEACHERS & MATHS FACULTY */}
         {activeTab === 'teachers' && (
           <div className="glass-panel p-6 rounded-2xl space-y-5 border border-sky-100 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <h2 className="text-xl font-black text-slate-900">Faculty & Teachers (Maths & Sciences)</h2>
-                <p className="text-xs text-slate-500">
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-xl font-black text-slate-900">Faculty & Teachers (Maths & Sciences)</h2>
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-xs font-black">
+                    {db.teachers.length} Active Faculty
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
                   Register teachers with DP, Subject/Standard, Login Gmail and Section in-charge roles
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowAddTeacherModal(true)}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Register Teacher</span>
-              </button>
+              <div className="flex items-center space-x-2.5">
+                <input
+                  type="text"
+                  placeholder="Search faculty by name or subject..."
+                  value={teacherSearchQuery}
+                  onChange={e => setTeacherSearchQuery(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white w-48 sm:w-64"
+                />
+
+                <button
+                  onClick={() => setShowAddTeacherModal(true)}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition flex-shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Register Teacher</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Reassurance Banner for Teacher Retention */}
+            <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl text-xs text-emerald-950 flex items-start space-x-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-extrabold text-[12px]">اساتذہ کا مستقل ریکارڈ (Zero Teacher Loss Guaranteed)</p>
+                <p className="text-[11px] text-emerald-800">
+                  تمام شامل کیے گئے اساتذہ لوکل سٹوریج میں محفوظ رہتے ہیں اور کبھی خود بخود ریموو نہیں ہوتے۔ آپ کسی بھی استاد کا نام، تصویر، یا مضمون نیچے ایڈٹ بٹن سے تبدیل کر سکتے ہیں۔
+                </p>
+              </div>
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
@@ -1853,22 +2306,29 @@ export const AdminPortal: React.FC = () => {
                     <th className="p-3">Login Gmail</th>
                     <th className="p-3">Subject / Specialization</th>
                     <th className="p-3">In-Charge Section</th>
-                    <th className="p-3">Qualification</th>
-                    <th className="p-3 text-right">Action</th>
+                    <th className="p-3">Qualification & Exp</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold bg-white">
-                  {db.teachers.map(tea => (
+                  {db.teachers
+                    .filter(t => 
+                      !teacherSearchQuery.trim() ||
+                      t.name.toLowerCase().includes(teacherSearchQuery.toLowerCase()) ||
+                      t.subject.toLowerCase().includes(teacherSearchQuery.toLowerCase()) ||
+                      t.email.toLowerCase().includes(teacherSearchQuery.toLowerCase())
+                    )
+                    .map(tea => (
                     <tr key={tea.id} className="hover:bg-sky-50/40 transition">
                       <td className="p-3 flex items-center space-x-2.5">
                         <img
                           src={tea.photo}
                           alt={tea.name}
-                          className="w-9 h-9 rounded-full object-cover border border-slate-200"
+                          className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-xs"
                         />
                         <div>
                           <span className="font-bold text-slate-900 block">{tea.name}</span>
-                          <span className="text-[10px] text-slate-400">Pass: {tea.pass}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">Pass: {tea.pass}</span>
                         </div>
                       </td>
                       <td className="p-3 font-mono text-slate-700">{tea.email}</td>
@@ -1878,24 +2338,348 @@ export const AdminPortal: React.FC = () => {
                           {tea.inchargeSection || 'None'}
                         </span>
                       </td>
-                      <td className="p-3 text-slate-600">{tea.qualification || 'Specialist'}</td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-slate-600">
+                        <div>{tea.qualification || 'Specialist'}</div>
+                        <div className="text-[10px] text-slate-400">{tea.experience || 'Faculty Member'}</div>
+                      </td>
+                      <td className="p-3 text-right space-x-1.5">
                         <button
+                          type="button"
+                          onClick={() => handleStartEditTeacher(tea)}
+                          className="p-1.5 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg transition"
+                          title="Edit teacher details"
+                        >
+                          <Edit2 className="w-4 h-4 inline" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             deleteTeacher(tea.id);
                             setAdminActionNotice(`Teacher "${tea.name}" deleted.`);
                             setTimeout(() => setAdminActionNotice(null), 3500);
                           }}
-                          className="text-red-500 hover:text-red-700 p-1"
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
                           title="Remove teacher"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4 inline" />
                         </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: COURSES & ACADEMIC PROGRAMS MANAGEMENT (REQUESTED FEATURE) */}
+        {activeTab === 'courses' && (
+          <div className="glass-panel p-6 rounded-2xl space-y-5 border border-sky-100 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-xl font-black text-slate-900">Academic Courses & Programs (کورسز مینجمنٹ)</h2>
+                  <span className="px-2.5 py-0.5 rounded-full bg-cyan-100 text-cyan-800 text-xs font-black">
+                    {(db.courses || []).length} Available Courses
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Manage college academic streams, eligibility criteria, subjects, and online student registration options
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingCourseId(null);
+                  setCourseTitle('');
+                  setCourseSubjects('');
+                  setCourseDescription('');
+                  setShowAddCourseModal(true);
+                }}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-bold shadow flex items-center space-x-1.5 transition flex-shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add New Course / Program</span>
+              </button>
+            </div>
+
+            {/* Solution Callout in Urdu & English */}
+            <div className="p-4 bg-gradient-to-r from-sky-50 to-cyan-50 border border-sky-200 rounded-2xl text-xs space-y-1.5">
+              <div className="flex items-center space-x-2 text-sky-900 font-extrabold">
+                <Sparkles className="w-4 h-4 text-cyan-600 flex-shrink-0" />
+                <span>کورسز مینیجمنٹ کا مکمل حل (Complete Courses Solution)</span>
+              </div>
+              <p className="text-slate-700 leading-relaxed">
+                اب آپ ایڈمن پینل سے اپنی مرضی کے مطابق کسی بھی کورس کو ایڈٹ یا تبدیل کر سکتے ہیں، نئے تعلیمی کورسز (جیسے ICOM، FA، ICS وغیرہ) بنا سکتے ہیں، اور ان کے مضامین یا اہلیت تبدیل کر سکتے ہیں۔ تمام تبدیلیاں خود بخود کالج ویب سائٹ کے پروگرامز سیکشن اور طلبہ کے رجسٹریشن ڈراپ ڈاؤن میں اپ ڈیٹ ہو جائیں گی!
+              </p>
+            </div>
+
+            {/* Courses Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(db.courses || []).map(course => {
+                const enrolledCount = db.students.filter(s => s.class.includes(course.title)).length;
+                return (
+                  <div
+                    key={course.id}
+                    className={`p-5 rounded-2xl bg-white border transition shadow-sm space-y-3.5 flex flex-col justify-between ${
+                      course.isActive ? 'border-sky-200 hover:border-sky-400' : 'border-slate-200 opacity-60 bg-slate-50'
+                    }`}
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-sky-100 text-sky-800">
+                            {course.category}
+                          </span>
+                          <h4 className="font-black text-sm text-slate-900 mt-1">{course.title}</h4>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                          {course.badge}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 text-xs text-slate-600 bg-sky-50/50 p-2.5 rounded-xl border border-sky-100/60">
+                        <p><strong>مدت (Duration):</strong> {course.duration}</p>
+                        <p><strong>اہلیت (Eligibility):</strong> {course.eligibility}</p>
+                        <p className="line-clamp-2"><strong>مضامین (Subjects):</strong> {course.subjects}</p>
+                      </div>
+
+                      {course.description && (
+                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                          {course.description}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <div className="flex items-center space-x-1.5">
+                        <Users className="w-3.5 h-3.5 text-sky-600" />
+                        <span className="text-slate-500 font-bold">{enrolledCount} طلبہ رجسٹرڈ</span>
+                      </div>
+
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditCourse(course)}
+                          className="px-2.5 py-1 text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-lg font-bold text-xs transition"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleCourseStatus(course.id)}
+                          className={`px-2 py-1 rounded-lg font-bold text-xs transition ${
+                            course.isActive ? 'text-amber-700 bg-amber-50 hover:bg-amber-100' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {course.isActive ? 'Disable' : 'Enable'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCourse(course.id, course.title)}
+                          className="p-1 text-red-500 hover:text-red-700 rounded-lg transition"
+                          title="Delete course"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TAB: LIVE CAMPUS ACTIVITIES & AUDIT (REQUESTED FEATURE: EXCLUSIVELY IN ADMIN PANEL) */}
+        {activeTab === 'activity' && (
+          <div className="glass-panel p-6 rounded-2xl space-y-6 border border-sky-100 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                  </span>
+                  <h2 className="text-xl font-black text-slate-900">Live Campus Activities & Department Tracking</h2>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  طلبہ کی آج کی لاگ ان حاضری، غیر حاضر طلبہ، دیکھے گئے تعلیمی لیکچرز و نوٹس، اور حساس ڈیپارٹمنٹ الرٹس کی لائیو اپ ڈیٹ (صرف ایڈمن پینل کے لیے مخصوص)
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={clearActivityNotifications}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center space-x-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>تمام الرٹس کلیئر کریں</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Summary Live Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider">آج لاگ ان کیا</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                </div>
+                <div className="flex items-baseline space-x-1.5">
+                  <span className="text-2xl font-black text-emerald-950">{todayLoggedStudents.length}</span>
+                  <span className="text-xs font-bold text-emerald-700">طلبہ حاضر</span>
+                </div>
+                <p className="text-[10px] text-emerald-700 truncate">
+                  {todayLoggedStudents.length > 0 ? todayLoggedStudents.map(s => s.name).join('، ') : 'آج ابھی تک کسی نے لاگ ان نہیں کیا'}
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider">غیر حاضر طلبہ</span>
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                </div>
+                <div className="flex items-baseline space-x-1.5">
+                  <span className="text-2xl font-black text-amber-950">{todayNotLoggedStudents.length}</span>
+                  <span className="text-xs font-bold text-amber-700">طلبہ غیر حاضر</span>
+                </div>
+                <p className="text-[10px] text-amber-700 truncate">
+                  {todayNotLoggedStudents.length > 0 ? todayNotLoggedStudents.map(s => s.name).join('، ') : 'تمام طلبہ لاگ ان ہیں'}
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-sky-800 tracking-wider">تعلیمی مواد ٹریکنگ</span>
+                  <Eye className="w-3.5 h-3.5 text-sky-600" />
+                </div>
+                <div className="flex items-baseline space-x-1.5">
+                  <span className="text-2xl font-black text-sky-950">
+                    {activityNotifications.filter(n => n.type === 'viewed_material').length}
+                  </span>
+                  <span className="text-xs font-bold text-sky-700">لیکچرز دیکھے گئے</span>
+                </div>
+                <p className="text-[10px] text-sky-700">طلبہ کی اسٹڈی میٹریل سرگرمیاں</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-rose-800 tracking-wider">حساس ڈیپارٹمنٹ الرٹس</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />
+                </div>
+                <div className="flex items-baseline space-x-1.5">
+                  <span className="text-2xl font-black text-rose-950">
+                    {activityNotifications.filter(n => n.isSensitive).length}
+                  </span>
+                  <span className="text-xs font-bold text-rose-700">حساس ایکشنز</span>
+                </div>
+                <p className="text-[10px] text-rose-700">منظوری، فون اور کنٹرول تبدیلیاں</p>
+              </div>
+            </div>
+
+            {/* Attendance Breakdowns */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-3">
+                <h4 className="font-black text-xs text-emerald-950 uppercase tracking-wider flex items-center justify-between">
+                  <span>1. آج پورٹل پر لاگ ان طلبہ ({todayLoggedStudents.length})</span>
+                  <span className="text-[10px] text-emerald-700 font-bold">حاضر</span>
+                </h4>
+                {todayLoggedStudents.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-3 text-center">آج ابھی تک کسی طالب علم نے لاگ ان نہیں کیا۔</p>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {todayLoggedStudents.map(std => (
+                      <div key={std.id} className="p-2.5 rounded-xl bg-white border border-emerald-200 flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-2">
+                          <img src={std.photo} alt={std.name} className="w-8 h-8 rounded-lg object-cover" />
+                          <div>
+                            <span className="font-bold text-slate-900 block">{std.name}</span>
+                            <span className="text-[10px] text-slate-500">Roll: {std.roll} • {std.class}</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono text-emerald-700 font-bold">{std.lastLoginTime || 'Today'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-200 space-y-3">
+                <h4 className="font-black text-xs text-amber-950 uppercase tracking-wider flex items-center justify-between">
+                  <span>2. آج لاگ ان نہ کرنے والے طلبہ ({todayNotLoggedStudents.length})</span>
+                  <span className="text-[10px] text-amber-700 font-bold">غیر حاضر</span>
+                </h4>
+                {todayNotLoggedStudents.length === 0 ? (
+                  <p className="text-xs text-emerald-600 py-3 text-center font-bold">ماشاء اللہ! تمام منظور شدہ طلبہ لاگ ان ہو چکے ہیں۔</p>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {todayNotLoggedStudents.map(std => (
+                      <div key={std.id} className="p-2.5 rounded-xl bg-white border border-amber-200 flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-2">
+                          <img src={std.photo} alt={std.name} className="w-8 h-8 rounded-lg object-cover" />
+                          <div>
+                            <span className="font-bold text-slate-900 block">{std.name}</span>
+                            <span className="text-[10px] text-slate-500">Roll: {std.roll} • Mobile: {std.mobile}</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-800">{std.lastLoginDate ? `آخری: ${std.lastLoginDate}` : 'کبھی نہیں'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Detailed Notification Log */}
+            <div className="space-y-3">
+              <h4 className="font-black text-xs text-slate-900 uppercase tracking-wider">
+                مکمل نوٹیفیکیشنز لاگ و آڈٹ ہسٹری ({activityNotifications.length})
+              </h4>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {activityNotifications.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-6 text-center">کوئی سرگرمی الرٹ درج نہیں ہے۔</p>
+                ) : (
+                  activityNotifications.map(item => (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-xl border flex items-start justify-between gap-3 text-xs ${
+                        item.isSensitive || item.severity === 'alert'
+                          ? 'bg-rose-50/70 border-rose-300 text-rose-950'
+                          : item.type === 'login'
+                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                          : item.type === 'no_login'
+                          ? 'bg-amber-50/70 border-amber-200 text-amber-950'
+                          : 'bg-sky-50/50 border-sky-200 text-sky-950'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-black text-xs">{item.title}</span>
+                          {item.isSensitive && (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 text-[9px] font-black">
+                              حساس الرٹ
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-400 font-mono">{item.timestamp}</span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed">{item.description}</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => dismissActivityNotification(item.id)}
+                        className="text-slate-400 hover:text-rose-600 p-1"
+                        title="Dismiss notification"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -2761,6 +3545,408 @@ export const AdminPortal: React.FC = () => {
                 >
                   Save & Register Faculty Member
                 </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: EDIT TEACHER DETAILS */}
+        {showEditTeacherModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-panel bg-white/95 max-w-lg w-full rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar border border-sky-300">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center space-x-2">
+                  <Edit2 className="w-4 h-4 text-sky-600" />
+                  <h3 className="font-black text-slate-900 text-sm">Edit Faculty Member (استاد تفصیلات اپ ڈیٹ)</h3>
+                </div>
+                <button onClick={() => setShowEditTeacherModal(false)} className="text-slate-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditTeacher} className="space-y-3.5 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Teacher Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={teaName}
+                    onChange={e => setTeaName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Gmail (Login) *</label>
+                    <input
+                      type="email"
+                      required
+                      value={teaEmail}
+                      onChange={e => setTeaEmail(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Password *</label>
+                    <input
+                      type="password"
+                      required
+                      value={teaPass}
+                      onChange={e => setTeaPass(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Subject / Specialization *</label>
+                    <input
+                      type="text"
+                      required
+                      value={teaSubject}
+                      onChange={e => setTeaSubject(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">In-Charge of Section</label>
+                    <select
+                      value={teaIncharge}
+                      onChange={e => setTeaIncharge(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    >
+                      <option value="None">None</option>
+                      {db.sections.map(s => (
+                        <option key={s.id} value={s.name}>Section {s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Qualifications</label>
+                    <input
+                      type="text"
+                      value={teaQual}
+                      onChange={e => setTeaQual(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Experience</label>
+                    <input
+                      type="text"
+                      value={teaExp}
+                      onChange={e => setTeaExp(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Upload New Teacher Photo (DP) from Device
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handlePhotoUploadHelper(e, setTeaPhotoUrl)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
+                  />
+                  {teaPhotoUrl && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <img src={teaPhotoUrl} alt="Preview" className="w-10 h-10 rounded-xl object-cover border" />
+                      <span className="text-[11px] text-emerald-600 font-bold">DP Loaded</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 flex items-center justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditTeacherModal(false)}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD COURSE / PROGRAM */}
+        {showAddCourseModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-panel bg-white max-w-lg w-full rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar border border-cyan-200">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center space-x-2">
+                  <BookOpen className="w-5 h-5 text-cyan-600" />
+                  <h3 className="font-black text-slate-900 text-sm">Add New Academic Program / Course</h3>
+                </div>
+                <button onClick={() => setShowAddCourseModal(false)} className="text-slate-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateCourse} className="space-y-3.5 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Course Title * (e.g. FSc Pre-Medical, ICOM, ICS Physics)</label>
+                  <input
+                    type="text"
+                    required
+                    value={courseTitle}
+                    onChange={e => setCourseTitle(e.target.value)}
+                    placeholder="e.g. ICOM (Commerce Stream)"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-bold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Category</label>
+                    <select
+                      value={courseCategory}
+                      onChange={e => setCourseCategory(e.target.value as any)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    >
+                      <option value="F.Sc">F.Sc</option>
+                      <option value="ICS">ICS</option>
+                      <option value="Commerce">Commerce / ICOM</option>
+                      <option value="General">General / FA</option>
+                      <option value="Entry Test">Entry Test / MDCAT / ECAT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Duration</label>
+                    <input
+                      type="text"
+                      value={courseDuration}
+                      onChange={e => setCourseDuration(e.target.value)}
+                      placeholder="Duration: 2 Years"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Eligibility Criteria</label>
+                  <input
+                    type="text"
+                    value={courseEligibility}
+                    onChange={e => setCourseEligibility(e.target.value)}
+                    placeholder="Eligibility: Matric with Science (Min 60%)"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Subjects List * (Comma separated)</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={courseSubjects}
+                    onChange={e => setCourseSubjects(e.target.value)}
+                    placeholder="e.g. Accounting, Commerce, Commercial Geography, Economics, English, Urdu"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Badge / Tag</label>
+                    <input
+                      type="text"
+                      value={courseBadge}
+                      onChange={e => setCourseBadge(e.target.value)}
+                      placeholder="e.g. Commerce Stream or Medical Batch"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Border Highlight Color</label>
+                    <select
+                      value={courseColor}
+                      onChange={e => setCourseColor(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    >
+                      <option value="border-sky-400">Sky Blue</option>
+                      <option value="border-cyan-400">Cyan</option>
+                      <option value="border-blue-400">Deep Blue</option>
+                      <option value="border-indigo-400">Indigo</option>
+                      <option value="border-teal-400">Teal</option>
+                      <option value="border-emerald-400">Emerald</option>
+                      <option value="border-rose-400">Rose / Red</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Description / Key Highlights</label>
+                  <textarea
+                    rows={2}
+                    value={courseDescription}
+                    onChange={e => setCourseDescription(e.target.value)}
+                    placeholder="Describe academic advantages, lab sessions, or coaching..."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCourseModal(false)}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl shadow"
+                  >
+                    Add Program & Save
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: EDIT COURSE / PROGRAM */}
+        {showEditCourseModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-panel bg-white max-w-lg w-full rounded-3xl p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar border border-cyan-200">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center space-x-2">
+                  <Edit2 className="w-5 h-5 text-cyan-600" />
+                  <h3 className="font-black text-slate-900 text-sm">Edit Academic Program (کورس معلومات اپ ڈیٹ)</h3>
+                </div>
+                <button onClick={() => setShowEditCourseModal(false)} className="text-slate-400">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditCourse} className="space-y-3.5 text-xs font-medium">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Course Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={courseTitle}
+                    onChange={e => setCourseTitle(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-bold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Category</label>
+                    <select
+                      value={courseCategory}
+                      onChange={e => setCourseCategory(e.target.value as any)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    >
+                      <option value="F.Sc">F.Sc</option>
+                      <option value="ICS">ICS</option>
+                      <option value="Commerce">Commerce / ICOM</option>
+                      <option value="General">General / FA</option>
+                      <option value="Entry Test">Entry Test / MDCAT / ECAT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Duration</label>
+                    <input
+                      type="text"
+                      value={courseDuration}
+                      onChange={e => setCourseDuration(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Eligibility Criteria</label>
+                  <input
+                    type="text"
+                    value={courseEligibility}
+                    onChange={e => setCourseEligibility(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Subjects List * (Comma separated)</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={courseSubjects}
+                    onChange={e => setCourseSubjects(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Badge / Tag</label>
+                    <input
+                      type="text"
+                      value={courseBadge}
+                      onChange={e => setCourseBadge(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Border Highlight Color</label>
+                    <select
+                      value={courseColor}
+                      onChange={e => setCourseColor(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                    >
+                      <option value="border-sky-400">Sky Blue</option>
+                      <option value="border-cyan-400">Cyan</option>
+                      <option value="border-blue-400">Deep Blue</option>
+                      <option value="border-indigo-400">Indigo</option>
+                      <option value="border-teal-400">Teal</option>
+                      <option value="border-emerald-400">Emerald</option>
+                      <option value="border-rose-400">Rose / Red</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Description / Key Highlights</label>
+                  <textarea
+                    rows={2}
+                    value={courseDescription}
+                    onChange={e => setCourseDescription(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditCourseModal(false)}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 text-xs font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl shadow"
+                  >
+                    Save Course Changes
+                  </button>
+                </div>
               </form>
             </div>
           </div>
